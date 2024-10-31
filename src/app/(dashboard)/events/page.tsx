@@ -1,0 +1,121 @@
+// src/app/(dashboard)/events/page.tsx
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EventCard } from "@/components/events/event-card";
+import dbConnect from "@/lib/db/connection";
+import { Event as EventModel } from "@/lib/db/models/event";
+
+// Define the Event interface
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+  location: {
+    venue: string;
+    address: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  capacity: number;
+  status: "draft" | "published" | "cancelled";
+  visibility: "public" | "private";
+  organizerId: string;
+  coHosts: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Define the MongoDB document interface
+interface EventDocument {
+  _id: any;
+  title: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+  location: {
+    venue: string;
+    address: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  capacity: number;
+  status: "draft" | "published" | "cancelled";
+  visibility: "public" | "private";
+  organizerId: string;
+  coHosts: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+async function getEvents(userId: string): Promise<Event[]> {
+  try {
+    await dbConnect();
+    const events = await EventModel.find({ organizerId: userId })
+      .sort({ createdAt: -1 })
+      .lean() as EventDocument[];
+
+    return events.map(event => ({
+      id: event._id.toString(),
+      title: event.title,
+      description: event.description,
+      startDate: new Date(event.startDate),
+      endDate: new Date(event.endDate),
+      location: event.location,
+      capacity: event.capacity,
+      status: event.status,
+      visibility: event.visibility,
+      organizerId: event.organizerId,
+      coHosts: event.coHosts,
+      createdAt: new Date(event.createdAt),
+      updatedAt: new Date(event.updatedAt)
+    }));
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    return [];
+  }
+}
+
+export default async function EventsPage() {
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
+
+  const events = await getEvents(userId);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Events</h1>
+        <Button asChild>
+          <Link href="/events/new">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Event
+          </Link>
+        </Button>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+          <p className="text-muted-foreground">No events found</p>
+          <Button asChild>
+            <Link href="/events/new">Create your first event</Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {events.map((event) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
