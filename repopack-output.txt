@@ -28,6 +28,7 @@ src/
       sign-up/
         [[...sign-up]]/
           page.tsx
+      layout.tsx
     (dashboard)/
       calendar/
         page.tsx
@@ -41,6 +42,7 @@ src/
           page.tsx
         new/
           page.tsx
+        loading.tsx
         page.tsx
       layout.tsx
     api/
@@ -51,6 +53,8 @@ src/
           activities/
             route.ts
           chat/
+            [messageId]/
+              route.ts
             route.ts
           check-in/
             route.ts
@@ -64,24 +68,50 @@ src/
             route.ts
           stats/
             route.ts
+          waitlist/
+            route.ts
+          route.ts
+        recurring/
+          route.ts
+        stats/
+          charts/
+            route.ts
+        upcoming/
           route.ts
         route.ts
       users/
         [userId]/
           route.ts
+      webhooks/
+        clerk/
+          route.ts
+      mocks.ts
+    error.tsx
+    global-error.tsx
     globals.css
     layout.tsx
+    not-found.tsx
     page.tsx
+    sentry.client.config.ts
   components/
     activity/
       activity-feed.tsx
+    ads/
+      AdSense.tsx
+      AdUnit.tsx
     calendar/
       event-calendar.tsx
     dashboard/
       charts.tsx
       event-stats.tsx
+      metric-card.tsx
+      metrics.tsx
       recent-activity.tsx
       upcoming-events.tsx
+    error-boundary/
+      global-error.tsx
+      sentry-error-boundary.tsx
+      with-error-boundary.tsx
     events/
       check-in.tsx
       event-card.tsx
@@ -100,62 +130,67 @@ src/
       navbar.tsx
     providers/
       theme-provider.tsx
-    ui/
-      avatar.tsx
-      badge.tsx
-      button.tsx
-      calendar.tsx
-      card.tsx
-      date-picker.tsx
-      dialog.tsx
-      dropdown-menu.tsx
-      form.tsx
-      input.tsx
-      label.tsx
-      popover.tsx
-      scroll-area.tsx
-      select.tsx
-      separator.tsx
-      sheet.tsx
-      skeleton.tsx
-      switch.tsx
-      table.tsx
-      tabs.tsx
-      textarea.tsx
-      toast.tsx
-      toaster.tsx
-      tooltip.tsx
     mode-toggle.tsx
   emails/
     event-invitation.tsx
   hooks/
+    use-error-boundary.ts
     use-toast.ts
   lib/
+    actions/
+      events.ts
     activity/
       notifications.ts
+    api/
+      error-handler.ts
+    auth/
+      rate-limit.ts
+      rbac.ts
+      roles.ts
+      types.ts
+    constants/
+      event-categories.ts
     db/
       models/
         activity.ts
         event.ts
         guest.ts
         message.ts
+        user.model.ts
+        waitlist.ts
+      utils/
+        monitor.ts
+        performance.ts
       connection.ts
     email/
       notifications.ts
     export/
       index.ts
+    validation/
+      event.ts
+      sanitize.ts
     auth.ts
     google-calendar.ts
+    logger.ts
     pusher.ts
+    rate-limit.ts
     utils.ts
+  mocks/
+    browser.ts
+    handlers.ts
+    server.ts
   types/
     event.ts
+  instrumentation.ts
   middleware.ts
-
 components.json
+jest.config.ts
+jest.setup.ts
 next.config.mjs
 package.json
 postcss.config.mjs
+sentry.server.config.ts
+service-worker.js
 tailwind.config.ts
 tsconfig.json
 
@@ -204,6 +239,31 @@ export default function SignUpPage() {
 }
 
 ================
+File: src/app/(auth)/layout.tsx
+================
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+
+export default async function AuthLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { userId } = await auth();
+
+  // If user is already authenticated, redirect to dashboard
+  if (userId) {
+    redirect("/dashboard");
+  }
+
+  return (
+    <div className="flex h-screen items-center justify-center">
+      {children}
+    </div>
+  );
+}
+
+================
 File: src/app/(dashboard)/calendar/page.tsx
 ================
 import { EventCalendar } from "@/components/calendar/event-calendar";
@@ -231,6 +291,7 @@ import { RecentActivity } from "@/components/dashboard/recent-activity";
 import dbConnect from "@/lib/db/connection";
 import { Event } from "@/lib/db/models/event";
 import { Guest } from "@/lib/db/models/guest";
+import AdUnit from "@/components/ads/AdUnit";
 
 async function getEventStats(userId: string) {
   await dbConnect();
@@ -302,32 +363,65 @@ export default async function DashboardPage() {
   const stats = await getEventStats(userId);
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <EventStats stats={stats} />
-      </div>
+    <div className="flex gap-4">
+      {/* Left Sidebar for Ad */}
+      {/* <div className="hidden xl:block w-[100px] shrink-0">
+        <AdUnit 
+          slot="30002"
+          format="vertical"
+          style={{ 
+            position: "sticky",
+            top: "2rem",
+            minHeight: "600px",
+            width: "160px",
+            margin: "",
+            display: "flex"
+          }}
+        />
+      </div> */}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="md:col-span-4">
-          <DashboardCharts />
+      {/* Main Dashboard Content */}
+      <div className="flex-1 space-y-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <EventStats stats={stats} />
         </div>
-        <div className="md:col-span-3">
-          <UpcomingEvents />
-        </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RecentActivity />
-          </CardContent>
-        </Card>
-      </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <div className="md:col-span-4">
+            <DashboardCharts />
+          </div>
+          <div className="md:col-span-3">
+            <UpcomingEvents />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RecentActivity />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="xl:block item-center justify-items-center justify-center shrink-0">
+            <AdUnit 
+              slot="30002"
+              format="vertical"
+              style={{ 
+                position: "sticky",
+                top: "2rem",
+                minHeight: "100px",
+                width: "400px",
+                margin: "0 auto",
+                display: "flex"
+              }}
+            />
+      </div> 
+      </div>      
     </div>
   );
 }
@@ -345,9 +439,9 @@ import dbConnect from "@/lib/db/connection";
 async function getEvent(eventId: string) {
   try {
     await dbConnect();
-    const event = await Event.findById(eventId);
+    const event = await Event.findById(eventId).toString();
     if (!event) return null;
-    return event.toObject();
+    return event;
   } catch (error) {
     console.error("Error fetching event:", error);
     return null;
@@ -426,6 +520,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ErrorBoundary } from "react-error-boundary";
 import {
   Tooltip,
   TooltipContent,
@@ -453,45 +548,24 @@ import { EventChat } from "@/components/events/event-chat";
 import { ShareEvent } from "@/components/events/share-event";
 import { auth } from "@clerk/nextjs/server";
 import dbConnect from "@/lib/db/connection";
+import { Event as EventModel } from "@/lib/db/models/event";
 import { serializeEvent } from "@/lib/utils";
+import AdUnit from "@/components/ads/AdUnit";
 
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  location: {
-    venue: string;
-    address: string;
-    coordinates?: {
-      lat: number;
-      lng: number;
-    };
-  };
-  capacity: number;
-  status: "draft" | "published" | "cancelled";
-  visibility: "public" | "private";
-  organizerId: string;
-  coHosts: string[];
-  attendees: {
-    confirmed: number;
-    waitlist: number;
-  };
-  recurring?: {
-    pattern: "daily" | "weekly" | "monthly";
-    interval: number;
-    endDate: string;
-  };
+function ErrorFallback({ error }: { error: Error }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+      <p className="text-muted-foreground">Something went wrong</p>
+      <pre className="text-sm text-red-500">{error.message}</pre>
+    </div>
+  );
 }
 
-async function getEvent(eventId: string): Promise<Event | null> {
+async function getEvent(eventId: string) {
   try {
     await dbConnect();
-    const event = await Event.findById(eventId);
+    const event = await EventModel.findById(eventId).lean();
     if (!event) return null;
-
-    // Use the serialization utility
     return serializeEvent(event);
   } catch (error) {
     console.error("Error fetching event:", error);
@@ -514,14 +588,6 @@ export default async function EventPage({
   const isOrganizer = userId === event.organizerId;
   const isCoHost = event.coHosts.includes(userId!);
   const canManageEvent = isOrganizer || isCoHost;
-
-  const generateICalFile = async () => {
-    // Implementation for generating iCal file
-  };
-
-  const sendReminders = async () => {
-    // Implementation for sending reminders
-  };
 
   return (
     <div className="space-y-6">
@@ -561,9 +627,9 @@ export default async function EventPage({
         )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        {/* Event Details Card */}
-        <Card className="p-6 space-y-4 md:col-span-2">
+      {/* Event Details */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="p-6 space-y-4 lg:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Event Details</h2>
             <div className="flex space-x-2">
@@ -593,7 +659,7 @@ export default async function EventPage({
           
           <Separator />
           
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 lg:grid-cols-3">
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
                 <Calendar className="h-5 w-5 text-muted-foreground" />
@@ -614,18 +680,6 @@ export default async function EventPage({
                   </p>
                 </div>
               </div>
-              
-              {event.recurring && (
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <div className="space-y-1">
-                    <p className="font-medium">Recurring</p>
-                    <p className="text-sm text-muted-foreground capitalize">
-                      {event.recurring.pattern}, every {event.recurring.interval} {event.recurring.pattern}(s)
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="space-y-4">
@@ -646,30 +700,15 @@ export default async function EventPage({
                   <p className="font-medium">Capacity</p>
                   <p className="text-sm text-muted-foreground">
                     {event.attendees?.confirmed || 0} confirmed / {event.capacity} maximum
-                    {event.attendees?.waitlist > 0 && (
-                      <span className="text-muted-foreground">
-                        {" "}({event.attendees.waitlist} on waitlist)
-                      </span>
-                    )}
                   </p>
                 </div>
               </div>
-                          </div>
-          </div>
-
-          {/* Location Map */}
-          {event.location.coordinates && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-2">Map</h3>
-              <div className="h-[300px] rounded-lg overflow-hidden">
-                {/* Add Google Maps Component Here */}
-              </div>
             </div>
-          )}
+          </div>
         </Card>
 
-        {/* Guest List Card */}
-        <Card className="p-6">
+        {/* Guest List */}
+        <Card className="p-6 h-full">
           <h2 className="text-xl font-semibold mb-4">Guest List</h2>
           <Separator className="mb-4" />
           <GuestList eventId={event.id} />
@@ -687,6 +726,18 @@ export default async function EventPage({
         </div>
         <Separator className="mb-4" />
         <EventChat eventId={event.id} />
+        <AdUnit 
+              slot="30002"
+              format="vertical"
+              style={{ 
+                position: "sticky",
+                top: "2rem",
+                minHeight: "100px",
+                width: "400px",
+                margin: "0 auto",
+                display: "flex"
+              }}
+        />
       </Card>
 
       {/* Share Dialog */}
@@ -743,9 +794,29 @@ export default async function NewEventPage() {
 }
 
 ================
+File: src/app/(dashboard)/events/loading.tsx
+================
+import { Skeleton } from "@/components/ui/skeleton";
+
+export default function EventsLoading() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-10 w-28" />
+      </div>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-[200px] rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+================
 File: src/app/(dashboard)/events/page.tsx
 ================
-// src/app/(dashboard)/events/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -753,25 +824,83 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventCard } from "@/components/events/event-card";
 import dbConnect from "@/lib/db/connection";
+import { Event as EventModel } from "@/lib/db/models/event";
+import AdUnit from "@/components/ads/AdUnit";
 
-import { Event } from "../../../lib/db/models/event"; 
+// Define the Event interface
+interface Event {
+  id: string;
+  title: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+  location: {
+    venue: string;
+    address: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  capacity: number;
+  status: "draft" | "published" | "cancelled";
+  visibility: "public" | "private";
+  organizerId: string;
+  coHosts: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-async function getEvents(userId: string) {
-    try {
-      await dbConnect();
-      const events = await Event.find({ organizerId: userId })
-        .sort({ createdAt: -1 })
-        .lean();
-  
-      return events.map(event => ({
-        ...event,
-        id: event.id.toString(),
-        _id: undefined
-      }));
-    } catch (error) {
-      console.error("Error fetching events:", error);
-      return [];
-    }
+// Define the MongoDB document interface
+interface EventDocument {
+  _id: any;
+  title: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+  location: {
+    venue: string;
+    address: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  capacity: number;
+  status: "draft" | "published" | "cancelled";
+  visibility: "public" | "private";
+  organizerId: string;
+  coHosts: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+async function getEvents(userId: string): Promise<Event[]> {
+  try {
+    await dbConnect();
+    const events = await EventModel.find({ organizerId: userId })
+      .sort({ createdAt: -1 })
+      .lean() as EventDocument[];
+
+    return events.map(event => ({
+      id: event._id.toString(),
+      title: event.title,
+      description: event.description,
+      startDate: new Date(event.startDate),
+      endDate: new Date(event.endDate),
+      location: event.location,
+      capacity: event.capacity,
+      status: event.status,
+      visibility: event.visibility,
+      organizerId: event.organizerId,
+      coHosts: event.coHosts,
+      createdAt: new Date(event.createdAt),
+      updatedAt: new Date(event.updatedAt)
+    }));
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    return [];
+  }
 }
 
 export default async function EventsPage() {
@@ -781,7 +910,9 @@ export default async function EventsPage() {
   const events = await getEvents(userId);
 
   return (
+    
     <div className="space-y-6">
+      
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Events</h1>
         <Button asChild>
@@ -790,7 +921,7 @@ export default async function EventsPage() {
             Create Event
           </Link>
         </Button>
-      </div>
+      </div>     
 
       {events.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
@@ -800,12 +931,27 @@ export default async function EventsPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
           {events.map((event) => (
             <EventCard key={event.id} event={event} />
-          ))}
+          ))}          
         </div>
+              
       )}
+      <div className="xl:block item-center justify-items-center justify-center shrink-0">
+            <AdUnit 
+              slot="30002"
+              format="vertical"
+              style={{ 
+                position: "sticky",
+                top: "2rem",
+                minHeight: "100px",
+                width: "400px",
+                margin: "0 auto",
+                display: "flex"
+              }}
+            />
+      </div>      
     </div>
   );
 }
@@ -945,6 +1091,142 @@ export async function GET(
     return NextResponse.json(activities);
   } catch (error) {
     console.error("Error fetching activities:", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
+
+================
+File: src/app/api/events/[eventId]/chat/[messageId]/route.ts
+================
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import dbConnect from "@/lib/db/connection";
+import { Message } from "@/lib/db/models/message";
+import { Event } from "@/lib/db/models/event";
+import { Guest } from "@/lib/db/models/guest";
+
+// GET a single message
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { eventId: string; messageId: string } }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    await dbConnect();
+
+    // Check if user has access to the event
+    const guest = await Guest.findOne({
+      eventId: params.eventId,
+      userId,
+      status: { $in: ["confirmed", "checked_in"] }
+    });
+
+    if (!guest) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const message = await Message.findById(params.messageId)
+      .populate('senderId', 'name avatar')
+      .lean();
+
+    if (!message) {
+      return new NextResponse("Message not found", { status: 404 });
+    }
+
+    return NextResponse.json(message);
+  } catch (error) {
+    console.error("Error fetching message:", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
+
+// PATCH update a message
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { eventId: string; messageId: string } }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    await dbConnect();
+
+    const message = await Message.findById(params.messageId);
+    if (!message) {
+      return new NextResponse("Message not found", { status: 404 });
+    }
+
+    // Check if user is the message sender
+    if (message.senderId.toString() !== userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const data = await req.json();
+    const updatedMessage = await Message.findByIdAndUpdate(
+      params.messageId,
+      {
+        $set: {
+          content: data.content,
+          edited: true,
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    ).populate('senderId', 'name avatar');
+
+    return NextResponse.json(updatedMessage);
+  } catch (error) {
+    console.error("Error updating message:", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
+
+// DELETE a message
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { eventId: string; messageId: string } }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    await dbConnect();
+
+    // Check if user has permission to delete the message
+    const [message, event] = await Promise.all([
+      Message.findById(params.messageId),
+      Event.findById(params.eventId)
+    ]);
+
+    if (!message) {
+      return new NextResponse("Message not found", { status: 404 });
+    }
+
+    // Allow deletion if user is:
+    // 1. The message sender
+    // 2. The event organizer
+    // 3. A co-host of the event
+    const isMessageSender = message.senderId.toString() === userId;
+    const isOrganizer = event?.organizerId === userId;
+    const isCoHost = event?.coHosts?.includes(userId);
+
+    if (!isMessageSender && !isOrganizer && !isCoHost) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    await Message.findByIdAndDelete(params.messageId);
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    console.error("Error deleting message:", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
@@ -1694,13 +1976,123 @@ export async function GET(
 }
 
 ================
+File: src/app/api/events/[eventId]/waitlist/route.ts
+================
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import dbConnect from "@/lib/db/connection";
+import { Event } from "@/lib/db/models/event";
+import { Waitlist } from "@/lib/db/models/waitlist";
+import { Guest } from "@/lib/db/models/guest";
+import { ActivityTypes, createActivity } from "@/lib/activity/notifications";
+
+export async function POST(
+    req: NextRequest,
+    { params }: { params: { eventId: string } }
+  ) {
+    try {
+      const { userId } = await auth();
+      if (!userId) {
+        return new NextResponse("Unauthorized", { status: 401 });
+      }
+  
+      await dbConnect();
+      const event = await Event.findById(params.eventId);
+  
+      if (!event) {
+        return new NextResponse("Event not found", { status: 404 });
+      }
+  
+      // Check if waitlist is enabled
+      if (!event.waitlist.enabled) {
+        return new NextResponse("Waitlist not enabled for this event", { 
+          status: 400 
+        });
+      }
+  
+      // Check if user is already registered or on waitlist
+      const [existingGuest, existingWaitlist] = await Promise.all([
+        Guest.findOne({ eventId: params.eventId, userId }),
+        Waitlist.findOne({ eventId: params.eventId, userId })
+      ]);
+  
+      if (existingGuest) {
+        return new NextResponse("Already registered for event", { 
+          status: 400 
+        });
+      }
+  
+      if (existingWaitlist) {
+        return new NextResponse("Already on waitlist", { status: 400 });
+      }
+  
+      // Get current waitlist position
+      const lastPosition = await Waitlist.findOne({ 
+        eventId: params.eventId 
+      })
+      .sort({ position: -1 })
+      .select('position');
+  
+      const newPosition = lastPosition ? lastPosition.position + 1 : 1;
+  
+      // Check if waitlist is full
+      if (event.waitlist.maxSize && newPosition > event.waitlist.maxSize) {
+        return new NextResponse("Waitlist is full", { status: 400 });
+      }
+  
+      // Add to waitlist
+      const waitlistEntry = await Waitlist.create({
+        eventId: params.eventId,
+        userId,
+        position: newPosition
+      });
+  
+      // Create activity log with correct activity type
+      await createActivity({
+        type: ActivityTypes.GUEST_WAITLISTED,
+        userId,
+        eventId: params.eventId,
+        metadata: { position: newPosition }
+      });
+  
+      return NextResponse.json(waitlistEntry);
+    } catch (error) {
+      console.error("Error joining waitlist:", error);
+      return new NextResponse("Internal Error", { status: 500 });
+    }
+}
+
+// Get waitlist status
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { eventId: string } }
+) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    await dbConnect();
+    const waitlistEntry = await Waitlist.findOne({
+      eventId: params.eventId,
+      userId
+    });
+
+    return NextResponse.json(waitlistEntry || null);
+  } catch (error) {
+    console.error("Error getting waitlist status:", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
+
+================
 File: src/app/api/events/[eventId]/route.ts
 ================
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/connection";
 import { Event } from "@/lib/db/models/event";
 import { auth } from "@clerk/nextjs/server";
-import { Guest } from "@/lib/db/models/guest";
 import mongoose from "mongoose";
 
 export async function GET(
@@ -1722,7 +2114,7 @@ export async function GET(
     }
 
     // Convert Mongoose document to a plain JavaScript object
-    const eventObject = event.toObject();
+    const eventObject = event;
 
     // Create a serializable version of the event
     const serializedEvent = {
@@ -1822,13 +2214,13 @@ export async function DELETE(
 }
 
 ================
-File: src/app/api/events/route.ts
+File: src/app/api/events/recurring/route.ts
 ================
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import { addDays, addWeeks, addMonths, setDate } from "date-fns";
 import dbConnect from "@/lib/db/connection";
 import { Event } from "@/lib/db/models/event";
-import { auth } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
 
 export async function POST(req: NextRequest) {
   try {
@@ -1836,6 +2228,300 @@ export async function POST(req: NextRequest) {
     if (!userId) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
+
+    await dbConnect();
+    const data = await req.json();
+
+    // Create base event
+    const baseEvent = await Event.create({
+      ...data,
+      organizerId: userId
+    });
+
+    // Generate recurring instances if recurring is enabled
+    if (data.recurring && data.recurring.pattern) {
+      const instances = generateRecurringInstances(baseEvent);
+      await Event.insertMany(instances);
+    }
+
+    return NextResponse.json(baseEvent);
+  } catch (error) {
+    console.error("Error creating recurring event:", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
+
+function generateRecurringInstances(baseEvent: any) {
+  const instances = [];
+  const { pattern, interval, endDate, daysOfWeek, dayOfMonth } = baseEvent.recurring;
+  let currentDate = new Date(baseEvent.startDate);
+  const duration = baseEvent.endDate.getTime() - baseEvent.startDate.getTime();
+
+  while (currentDate <= new Date(endDate)) {
+    // Skip the base event date
+    if (currentDate.getTime() === baseEvent.startDate.getTime()) {
+      currentDate = getNextDate(currentDate, pattern, interval);
+      continue;
+    }
+
+    // Skip if date is in exceptions
+    if (baseEvent.recurring.exceptions?.some((d: Date) => 
+      d.getTime() === currentDate.getTime()
+    )) {
+      currentDate = getNextDate(currentDate, pattern, interval);
+      continue;
+    }
+
+    // For weekly pattern, check if day is included
+    if (pattern === "weekly" && daysOfWeek) {
+      const dayOfWeek = currentDate.getDay();
+      if (!daysOfWeek.includes(dayOfWeek)) {
+        currentDate = addDays(currentDate, 1);
+        continue;
+      }
+    }
+
+    // For monthly pattern, check if it's the right day
+    if (pattern === "monthly" && dayOfMonth) {
+      if (currentDate.getDate() !== dayOfMonth) {
+        currentDate = setDate(currentDate, dayOfMonth);
+        continue;
+      }
+    }
+
+    const instanceEndDate = new Date(currentDate.getTime() + duration);
+
+    instances.push({
+      ...baseEvent.toObject(),
+      _id: undefined,
+      startDate: currentDate,
+      endDate: instanceEndDate,
+      recurring: {
+        ...baseEvent.recurring,
+        originalEventId: baseEvent._id
+      }
+    });
+
+    currentDate = getNextDate(currentDate, pattern, interval);
+  }
+
+  return instances;
+}
+
+function getNextDate(date: Date, pattern: string, interval: number): Date {
+  switch (pattern) {
+    case "daily":
+      return addDays(date, interval);
+    case "weekly":
+      return addWeeks(date, interval);
+    case "monthly":
+      return addMonths(date, interval);
+    default:
+      return date;
+  }
+}
+
+================
+File: src/app/api/events/stats/charts/route.ts
+================
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import dbConnect from "@/lib/db/connection";
+import { Event } from "@/lib/db/models/event";
+import { Guest } from "@/lib/db/models/guest";
+import { startOfMonth, subMonths, format, startOfWeek, endOfWeek, subWeeks } from "date-fns";
+
+export async function GET(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    await dbConnect();
+    const now = new Date();
+
+    // Get last 6 months of attendance data
+    const monthlyAttendance = await Promise.all(
+      Array.from({ length: 6 }).map(async (_, index) => {
+        const monthStart = startOfMonth(subMonths(now, 5 - index));
+        const monthName = format(monthStart, 'MMM');
+
+        const monthEvents = await Event.find({
+          organizerId: userId,
+          startDate: {
+            $gte: monthStart,
+            $lt: startOfMonth(subMonths(now, 4 - index))
+          }
+        });
+
+        const eventIds = monthEvents.map(event => event._id);
+        const totalCapacity = monthEvents.reduce((sum, event) => sum + event.capacity, 0);
+        
+        const attendees = await Guest.countDocuments({
+          eventId: { $in: eventIds },
+          status: "checked_in"
+        });
+
+        return {
+          name: monthName,
+          attendees,
+          capacity: totalCapacity || 0
+        };
+      })
+    );
+
+    // Get last 4 weeks of registration data
+    const weeklyRegistrations = await Promise.all(
+      Array.from({ length: 4 }).map(async (_, index) => {
+        const weekStart = startOfWeek(subWeeks(now, 3 - index));
+        const weekEnd = endOfWeek(subWeeks(now, 3 - index));
+
+        const registrations = await Guest.countDocuments({
+          createdAt: { $gte: weekStart, $lt: weekEnd },
+          eventId: {
+            $in: await Event.find({ organizerId: userId }).distinct('_id')
+          }
+        });
+
+        return {
+          name: `Week ${index + 1}`,
+          registrations
+        };
+      })
+    );
+
+    // Get event types distribution
+    const events = await Event.find({ organizerId: userId });
+    const eventTypes = events.reduce((acc: { [key: string]: number }, event) => {
+      const type = event.type || 'Other';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const eventTypeData = Object.entries(eventTypes).map(([name, value]) => ({
+      name,
+      value
+    }));
+
+    return NextResponse.json({
+      attendanceData: monthlyAttendance,
+      registrationData: weeklyRegistrations,
+      eventTypeData
+    });
+  } catch (error) {
+    console.error("Error fetching chart data:", error);
+    return new NextResponse("Internal Error", { status: 500 });
+  }
+}
+
+================
+File: src/app/api/events/upcoming/route.ts
+================
+// src/app/api/events/upcoming/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
+import dbConnect from "@/lib/db/connection";
+import { Event } from "@/lib/db/models/event";
+import { Guest } from "@/lib/db/models/guest";
+
+export async function GET(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    await dbConnect();
+
+    const now = new Date();
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(now.getDate() + 30);
+
+    // Fetch upcoming events
+    const events = await Event.find({
+      organizerId: userId,
+      startDate: { $gte: now, $lte: thirtyDaysFromNow },
+      status: { $ne: "cancelled" }
+    })
+    .sort({ startDate: 1 })
+    .limit(5)
+    .lean();
+
+    // Get attendees count for each event
+    const eventsWithAttendees = await Promise.all(
+      events.map(async (event) => {
+        const confirmedCount = await Guest.countDocuments({
+          eventId: event._id,
+          status: "confirmed"
+        });
+
+        const status = event.startDate > now 
+          ? "upcoming"
+          : event.endDate < now 
+          ? "ended" 
+          : "ongoing";
+
+        return {
+          id: event._id,
+          title: event.title,
+          description: event.description,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          location: {
+            venue: event.location?.venue || 'No venue specified',
+            address: event.location?.address || 'No address specified'
+          },
+          attendees: {
+            confirmed: confirmedCount,
+            total: event.capacity
+          },
+          status,
+          visibility: event.visibility
+        };
+      })
+    );
+
+    return NextResponse.json({
+      events: eventsWithAttendees,
+      success: true
+    });
+  } catch (error) {
+    console.error("Error fetching upcoming events:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to fetch upcoming events",
+        success: false,
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      },
+      { status: 500 }
+    );
+  }
+}
+
+================
+File: src/app/api/events/route.ts
+================
+import { NextRequest, NextResponse } from "next/server";
+import dbConnect from "@/lib/db/connection";
+import { Event } from "@/lib/db/models/event";
+import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
+import { handleApiError, ApiError } from '@/lib/api/error-handler';
+import { analyzeQueryPerformance } from '@/lib/db/utils/performance';
+
+export async function POST(req: NextRequest) {
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      throw new ApiError('Unauthorized', 401, 'UNAUTHORIZED');
+    }
+
+    // Analyze query performance
+    const queryPerformance = await analyzeQueryPerformance(Event, {
+      organizerId: userId
+    });
+    console.log('Query Performance:', queryPerformance);
 
     await dbConnect();
     const data = await req.json();
@@ -1849,9 +2535,7 @@ export async function POST(req: NextRequest) {
         venue: data.venue,
         address: data.address
       }
-    });
-
-    
+    });   
 
     // Convert the Mongoose document to a plain object and ensure _id is converted to id
     const eventObject = event.toObject();
@@ -1867,18 +2551,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(responseEvent);
   } catch (error) {
     console.error("Error creating event:", error);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: "Failed to create event", 
-        details: error instanceof Error ? error.message : "Unknown error" 
-      }), 
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    return handleApiError(error);    
   }
 }
 
@@ -1888,10 +2561,19 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const organizerId = searchParams.get("organizerId");
+    const { userId } = await auth();
+    if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
     let query = {};
     if (status) query = { ...query, status };
     if (organizerId) query = { ...query, organizerId };
+
+    // Analyze query performance
+    const queryPerformance = await analyzeQueryPerformance(Event, {
+      organizerId: userId
+    });
+
+    console.log('Query Performance:', queryPerformance);
 
     const events = await Event.find(query).sort({ createdAt: -1 }).limit(100);
 
@@ -1953,6 +2635,174 @@ export async function GET(
     console.error("Error fetching user:", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
+}
+
+================
+File: src/app/api/webhooks/clerk/route.ts
+================
+import { Webhook } from 'svix';
+import { headers } from 'next/headers';
+import { WebhookEvent } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
+import dbConnect from '@/lib/db/connection';
+
+export async function POST(req: Request) {
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+  
+  if (!WEBHOOK_SECRET) {
+    throw new Error('Please add WEBHOOK_SECRET from Clerk Dashboard to .env file');
+  }
+
+  // Get the headers
+  const headerPayload = headers();
+  const svix_id = headerPayload.get("svix-id");
+  const svix_timestamp = headerPayload.get("svix-timestamp");
+  const svix_signature = headerPayload.get("svix-signature");
+
+  // If there are no headers, error out
+  if (!svix_id || !svix_timestamp || !svix_signature) {
+    return new NextResponse('Error occured -- no svix headers', {
+      status: 400
+    });
+  }
+
+  // Get the body
+  const payload = await req.json();
+  const body = JSON.stringify(payload);
+
+  // Create a new Svix instance with your secret
+  const wh = new Webhook(WEBHOOK_SECRET);
+
+  let evt: WebhookEvent;
+
+  try {
+    evt = wh.verify(body, {
+      "svix-id": svix_id,
+      "svix-timestamp": svix_timestamp,
+      "svix-signature": svix_signature,
+    }) as WebhookEvent;
+  } catch (err) {
+    console.error('Error verifying webhook:', err);
+    return new NextResponse('Error occured', {
+      status: 400
+    });
+  }
+
+  // Handle the webhook
+  const eventType = evt.type;
+  
+  try {
+    await dbConnect();
+    
+    switch (eventType) {
+      case 'user.created':
+        // Handle user creation
+        break;
+      case 'user.updated':
+        // Handle user update
+        break;
+      case 'user.deleted':
+        // Handle user deletion
+        break;
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Webhook processed successfully`
+    });
+    
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    return new NextResponse('Error processing webhook', { 
+      status: 500 
+    });
+  }
+}
+
+================
+File: src/app/api/mocks.ts
+================
+async function initMocks() {
+    if (typeof window === 'undefined') {
+      const { server } = await import('../../mocks/server');
+      server.listen({ onUnhandledRequest: 'bypass' });
+    } else {
+      const { worker } = await import('../../mocks/browser');
+      worker.start({ onUnhandledRequest: 'bypass' });
+    }
+}
+  
+export default initMocks;
+
+================
+File: src/app/error.tsx
+================
+'use client';
+
+import { useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import * as Sentry from "@sentry/nextjs";
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
+  return (
+    <div className="flex h-screen flex-col items-center justify-center space-y-4">
+      <h1 className="text-4xl font-bold">Something went wrong!</h1>
+      <p className="text-muted-foreground">We apologize for the inconvenience.</p>
+      <div className="flex space-x-4">
+        <Button onClick={() => reset()}>Try again</Button>
+        <Button variant="outline" asChild>
+          <a href="/">Go Home</a>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+================
+File: src/app/global-error.tsx
+================
+// src/app/global-error.tsx
+'use client';
+
+import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
+
+export default function GlobalError({
+  error,
+}: {
+  error: Error & { digest?: string };
+}) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
+  return (
+    <html>
+      <body>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Something went wrong!</h1>
+            <button
+              className="mt-4 rounded bg-primary px-4 py-2 text-white"
+              onClick={() => window.location.reload()}
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      </body>
+    </html>
+  );
 }
 
 ================
@@ -2059,22 +2909,53 @@ import type { Metadata } from 'next'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
+import { ErrorBoundary } from 'react-error-boundary';
+import { GlobalError } from '@/components/error-boundary/global-error';
+import { AdSense } from "@/components/ads/AdSense";
+
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Feest APP',
-  description: 'Comprehensive event management platform',
-}
+  title: {
+    default: 'Feest - Event Management Platform',
+    template: '%s | Feest'
+  },
+  description: 'Professional event management platform for organizing and managing events',
+  keywords: ['events', 'management', 'organization', 'planning'],
+  authors: [{ name: 'user52' }],
+  creator: 'Shareflyt',
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://your-domain.com',
+    title: 'Feest - Event Management Platform',
+    description: 'Professional event management platform for organizing and managing events',
+    siteName: 'Feest'
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Feest - Event Management Platform',
+    description: 'Professional event management platform for organizing and managing events',
+    creator: '@ch1pset4x'
+  },
+  robots: {
+    index: true,
+    follow: true
+  }
+};
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode
-}) {
+}) {  
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
+        <head>
+        <AdSense publisherId={process.env.NEXT_PUBLIC_GOOGLE_ADS_CLIENT_ID!} />
+        </head>
         <body className={inter.className}>
           <ThemeProvider
             attribute="class"
@@ -2082,13 +2963,35 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            {children}
+            <ErrorBoundary 
+              FallbackComponent={GlobalError}              
+            >
+              {children}
+            </ErrorBoundary>
             <Toaster />
           </ThemeProvider>
         </body>
       </html>
     </ClerkProvider>
   )
+}
+
+================
+File: src/app/not-found.tsx
+================
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+export default function NotFound() {
+  return (
+    <div className="flex h-screen flex-col items-center justify-center space-y-4">
+      <h1 className="text-4xl font-bold">404</h1>
+      <p className="text-muted-foreground">The page you're looking for doesn't exist.</p>
+      <Button asChild>
+        <Link href="/">Go Home</Link>
+      </Button>
+    </div>
+  );
 }
 
 ================
@@ -2118,16 +3021,16 @@ export default function LandingPage() {
           grand conferences, we've got you covered.
         </p>
         <div className="flex flex-col gap-4 min-[400px]:flex-row">
-          <Link href="/sign-up">
-            <Button size="lg" className="gap-2">
+          <Button asChild size="lg" className="gap-2">
+            <Link href="/sign-up">
               Get Started <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-          <Link href="/sign-in">
-            <Button size="lg" variant="outline">
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/sign-in">
               Sign In
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -2296,6 +3199,29 @@ export default function LandingPage() {
 }
 
 ================
+File: src/app/sentry.client.config.ts
+================
+import * as Sentry from "@sentry/nextjs";
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 1.0,
+  debug: process.env.NODE_ENV === "development",
+  replaysOnErrorSampleRate: 1.0,
+  replaysSessionSampleRate: 0.1,
+  integrations: [
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration({
+      maskAllText: true,
+      blockAllMedia: true,
+    }),
+    Sentry.feedbackIntegration({
+      colorScheme: "system",
+    }),
+  ],
+});
+
+================
 File: src/components/activity/activity-feed.tsx
 ================
 "use client";
@@ -2414,6 +3340,132 @@ export function ActivityFeed({ eventId, userId, limit = 20 }: ActivityFeedProps)
 }
 
 ================
+File: src/components/ads/AdSense.tsx
+================
+"use client";
+
+import Script from "next/script";
+
+interface AdSenseProps {
+  publisherId: string;
+}
+
+export function AdSense({ publisherId }: AdSenseProps) {
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+
+  return (
+    <Script
+      id="adsbygoogle-init"
+      async
+      src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${publisherId}`}
+      crossOrigin="anonymous"
+      strategy="afterInteractive"
+      onError={(e) => {
+        console.error("AdSense script failed to load:", e);
+      }}
+    />
+  );
+}
+
+================
+File: src/components/ads/AdUnit.tsx
+================
+"use client";
+
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
+
+declare global {
+  interface Window {
+    adsbygoogle: {
+      push: (obj: unknown) => void;
+    }[] | undefined;
+  }
+}
+
+interface AdUnitProps {
+  slot: string;
+  format?: "auto" | "fluid" | "rectangle" | "horizontal" | "vertical";
+  layout?: string;
+  fullWidthResponsive?: boolean;
+  style?: React.CSSProperties;
+}
+
+const AdUnit = ({
+  slot,
+  format = "vertical",
+  layout,
+  fullWidthResponsive = true,
+  style
+}: AdUnitProps) => {
+  const adRef = useRef<HTMLModElement>(null);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const loadAd = () => {
+      const intervalId = setInterval(() => {
+        try {
+          if (typeof window !== "undefined") {
+            if (!window.adsbygoogle) {
+              window.adsbygoogle = [];
+            }
+            window.adsbygoogle.push();
+            clearInterval(intervalId);
+          }
+        } catch (error) {
+          console.error("AdSense error:", error);
+          clearInterval(intervalId);
+        }
+      }, 300);
+
+      return intervalId;
+    };
+
+    // Initial ad load
+    const intervalId = loadAd();
+
+    // Cleanup on unmount or route change
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      
+      // Clean up the ad slot
+      if (adRef.current) {
+        adRef.current.innerHTML = '';
+      }
+    };
+  }, [pathname, searchParams]);
+
+  return (
+    <ins
+      ref={adRef}
+      className="adsbygoogle"
+      style={{
+        display: "block",
+        textAlign: "center",
+        minHeight: "100px",
+        backgroundColor: process.env.NODE_ENV === "development" ? "#f0f0f0" : "transparent",
+        border: process.env.NODE_ENV === "development" ? "1px dashed #ccc" : "none",
+        margin: "20px auto",
+        maxWidth: "100%",
+        overflow: "hidden",
+        ...style
+      }}
+      data-ad-client={process.env.NEXT_PUBLIC_GOOGLE_ADS_CLIENT_ID}
+      data-ad-slot={slot}
+      data-ad-format={format}
+      data-ad-layout={layout}
+      data-full-width-responsive={fullWidthResponsive}
+      data-adtest={process.env.NODE_ENV === "development" ? "on" : "off"}
+    />
+  );
+};
+
+export default AdUnit;
+
+================
 File: src/components/calendar/event-calendar.tsx
 ================
 "use client";
@@ -2486,9 +3538,9 @@ export function EventCalendar() {
 ================
 File: src/components/dashboard/charts.tsx
 ================
-// src/components/dashboard/charts.tsx
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -2505,6 +3557,11 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { Skeleton } from "@/components/ui/skeleton";
+import { MetricCard } from './metric-card';
+import { Calendar } from "../ui/calendar";
+import { Activity } from "@/lib/db/models/activity";
+import { useQuery } from "@tanstack/react-query";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -2525,29 +3582,58 @@ interface ChartData {
 }
 
 export function DashboardCharts() {
-  // In a real app, this would come from an API
-  const data: ChartData = {
-    attendanceData: [
-      { name: 'Jan', attendees: 85, capacity: 100 },
-      { name: 'Feb', attendees: 92, capacity: 100 },
-      { name: 'Mar', attendees: 88, capacity: 100 },
-      { name: 'Apr', attendees: 95, capacity: 100 },
-      { name: 'May', attendees: 90, capacity: 100 },
-      { name: 'Jun', attendees: 94, capacity: 100 },
-    ],
-    registrationData: [
-      { name: 'Week 1', registrations: 24 },
-      { name: 'Week 2', registrations: 36 },
-      { name: 'Week 3', registrations: 42 },
-      { name: 'Week 4', registrations: 50 },
-    ],
-    eventTypeData: [
-      { name: 'Conference', value: 35 },
-      { name: 'Workshop', value: 25 },
-      { name: 'Seminar', value: 20 },
-      { name: 'Networking', value: 20 },
-    ],
-  };
+  const [data, setData] = useState<ChartData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        const response = await fetch('/api/events/stats/charts');
+        if (!response.ok) {
+          throw new Error('Failed to fetch chart data');
+        }
+        const chartData = await response.json();
+        setData(chartData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card className="col-span-4">
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[300px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="col-span-4">
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+            Failed to load chart data
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) return null;
 
   return (
     <Card className="col-span-4">
@@ -2574,6 +3660,7 @@ export function DashboardCharts() {
                   dataKey="attendees" 
                   stroke="#8884d8" 
                   strokeWidth={2}
+                  name="Attendees"
                 />
                 <Line 
                   type="monotone" 
@@ -2581,6 +3668,7 @@ export function DashboardCharts() {
                   stroke="#82ca9d" 
                   strokeWidth={2}
                   strokeDasharray="5 5"
+                  name="Capacity"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -2597,6 +3685,7 @@ export function DashboardCharts() {
                   dataKey="registrations" 
                   fill="#8884d8" 
                   radius={[4, 4, 0, 0]}
+                  name="Registrations"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -2628,6 +3717,29 @@ export function DashboardCharts() {
     </Card>
   );
 }
+
+// export default function DashboardMetrics() {
+//   const metrics = useQuery(['metrics'], async () => {
+//     const response = await fetch('/api/events/stats');
+//     return response.json();
+//   });
+
+//   return (
+//     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+//       <MetricCard
+//         title="Total Events"
+//         value={metrics.data.totalEvents}
+//         icon={<Calendar />}
+//       />
+//       <MetricCard
+//         title="Active Events"
+//         value={metrics.data.activeEvents}
+//         icon={<Activity />}
+//       />
+//       {/* Add more metric cards */}
+//     </div>
+//   );
+// }
 
 ================
 File: src/components/dashboard/event-stats.tsx
@@ -2723,6 +3835,120 @@ export function EventStats({ stats }: StatsProps) {
         </CardContent>
       </Card>
     </>
+  );
+}
+
+================
+File: src/components/dashboard/metric-card.tsx
+================
+import { Card, CardContent } from "@/components/ui/card";
+import { ReactNode } from "react";
+
+interface MetricCardProps {
+  title: string;
+  value: number | string;
+  icon?: ReactNode;
+  description?: string;
+  trend?: {
+    value: number;
+    isPositive: boolean;
+  };
+}
+
+export function MetricCard({ title, value, icon, description, trend }: MetricCardProps) {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between space-x-4">
+          <div className="flex items-center space-x-4">
+            {icon && <div className="text-muted-foreground">{icon}</div>}
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">{title}</p>
+              <h3 className="text-2xl font-bold">{value}</h3>
+              {description && (
+                <p className="text-xs text-muted-foreground">{description}</p>
+              )}
+            </div>
+          </div>
+          {trend && (
+            <div className={`text-sm ${trend.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+================
+File: src/components/dashboard/metrics.tsx
+================
+// src/components/dashboard/metrics.tsx
+import { useQuery } from '@tanstack/react-query';
+import { Calendar, Activity, Users, TrendingUp } from 'lucide-react';
+import { MetricCard } from './metric-card';
+
+interface MetricsData {
+  totalEvents: number;
+  activeEvents: number;
+  totalAttendees: number;
+  growthRate: number;
+}
+
+export function DashboardMetrics() {
+  const { data, isLoading } = useQuery<MetricsData>({
+    queryKey: ['metrics'],
+    queryFn: async () => {
+      const response = await fetch('/api/events/stats');
+      if (!response.ok) {
+        throw new Error('Failed to fetch metrics');
+      }
+      return response.json();
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="h-32 animate-pulse bg-muted rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <MetricCard
+        title="Total Events"
+        value={data?.totalEvents || 0}
+        icon={<Calendar className="h-4 w-4" />}
+        description="All time events"
+      />
+      <MetricCard
+        title="Active Events"
+        value={data?.activeEvents || 0}
+        icon={<Activity className="h-4 w-4" />}
+        description="Currently running"
+      />
+      <MetricCard
+        title="Total Attendees"
+        value={data?.totalAttendees || 0}
+        icon={<Users className="h-4 w-4" />}
+        description="Across all events"
+      />
+      <MetricCard
+        title="Growth Rate"
+        value={`${data?.growthRate || 0}%`}
+        icon={<TrendingUp className="h-4 w-4" />}
+        trend={{
+          value: data?.growthRate || 0,
+          isPositive: (data?.growthRate || 0) > 0
+        }}
+        description="vs last month"
+      />
+    </div>
   );
 }
 
@@ -2968,8 +4194,10 @@ export function RecentActivity() {
 ================
 File: src/components/dashboard/upcoming-events.tsx
 ================
+// src/components/dashboard/upcoming-events.tsx
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2977,34 +4205,60 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar, Clock, MapPin, Users } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
+import { LoadingSpinner } from "@/components/ui/loading-state";
 
 interface Event {
   id: string;
   title: string;
-  startDate: Date;
+  startDate: string;
+  endDate: string;
   location: {
     venue: string;
+    address: string;
   };
   attendees: {
     confirmed: number;
     total: number;
   };
   status: "upcoming" | "ongoing" | "ended";
+  visibility: "public" | "private";
+}
+
+interface ApiResponse {
+  events: Event[];
+  success: boolean;
+  error?: string;
 }
 
 export function UpcomingEvents() {
-  // In a real app, this would come from an API
-  const events: Event[] = [
-    {
-      id: "1",
-      title: "Tech Conference 2024",
-      startDate: new Date("2024-07-15"),
-      location: { venue: "Convention Center" },
-      attendees: { confirmed: 120, total: 150 },
-      status: "upcoming"
-    },
-    // Add more events...
-  ];
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUpcomingEvents = async () => {
+      try {
+        const response = await fetch('/api/events/upcoming');
+        if (!response.ok) {
+          throw new Error('Failed to fetch upcoming events');
+        }
+        const data: ApiResponse = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch events');
+        }
+
+        setEvents(data.events);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+        console.error('Error fetching upcoming events:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUpcomingEvents();
+  }, []);
 
   const getStatusColor = (status: string) => {
     const colors = {
@@ -3014,6 +4268,32 @@ export function UpcomingEvents() {
     };
     return colors[status as keyof typeof colors];
   };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Upcoming Events</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[400px]">
+          <LoadingSpinner />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Upcoming Events</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-[400px] text-muted-foreground">
+          {error}
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -3025,47 +4305,164 @@ export function UpcomingEvents() {
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] pr-4">
-          <div className="space-y-4">
-            {events.map((event) => (
-              <Link 
-                key={event.id} 
-                href={`/events/${event.id}`}
-                className="block"
-              >
-                <div className="rounded-lg border p-3 hover:bg-accent transition-colors">
-                  <div className="flex items-start justify-between">
-                    <h3 className="font-medium">{event.title}</h3>
-                    <Badge className={getStatusColor(event.status)}>
-                      {event.status}
-                    </Badge>
+          {events.length === 0 ? (
+            <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+              No upcoming events
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {events.map((event) => (
+                <Link 
+                  key={event.id} 
+                  href={`/events/${event.id}`}
+                  className="block"
+                >
+                  <div className="rounded-lg border p-3 hover:bg-accent transition-colors">
+                    <div className="flex items-start justify-between">
+                      <h3 className="font-medium">{event.title}</h3>
+                      <Badge className={getStatusColor(event.status)}>
+                        {event.status}
+                      </Badge>
+                    </div>
+                    
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {format(new Date(event.startDate), "PPP")}
+                      </div>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Clock className="mr-2 h-4 w-4" />
+                        {format(new Date(event.startDate), "p")} - 
+                        {format(new Date(event.endDate), "p")}
+                      </div>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <MapPin className="mr-2 h-4 w-4" />
+                        {event.location.venue}
+                      </div>
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <Users className="mr-2 h-4 w-4" />
+                        {event.attendees.confirmed} / {event.attendees.total} attendees
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {format(event.startDate, "PPP")}
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Clock className="mr-2 h-4 w-4" />
-                      {format(event.startDate, "p")}
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <MapPin className="mr-2 h-4 w-4" />
-                      {event.location.venue}
-                    </div>
-                    <div className="flex items-center text-sm text-muted-foreground">
-                      <Users className="mr-2 h-4 w-4" />
-                      {event.attendees.confirmed} / {event.attendees.total} attendees
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>
   );
+}
+
+================
+File: src/components/error-boundary/global-error.tsx
+================
+"use client"
+
+import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
+import { Button } from '@/components/ui/button';
+import { FallbackProps } from 'react-error-boundary';
+
+export function GlobalError({ error, resetErrorBoundary }: FallbackProps) {
+  useEffect(() => {
+    // Log to error reporting service
+    Sentry.captureException(error);
+  }, [error]);
+
+  return (
+    <div className="flex h-screen flex-col items-center justify-center space-y-4">
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-bold text-destructive">Something went wrong!</h1>
+        <p className="text-muted-foreground">
+          We apologize for the inconvenience. Please try again.
+        </p>
+      </div>
+      <div className="flex space-x-4">
+        <Button onClick={() => window.location.reload()}>Refresh Page</Button>
+        <Button variant="outline" onClick={resetErrorBoundary}>Try Again</Button>
+      </div>
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 max-w-xl overflow-auto rounded-md bg-muted p-4">
+          <pre className="text-sm text-destructive">{error.message}</pre>
+          <pre className="text-xs text-muted-foreground">{error.stack}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+================
+File: src/components/error-boundary/sentry-error-boundary.tsx
+================
+'use client';
+
+import * as Sentry from "@sentry/nextjs";
+import { Component, ReactNode } from "react";
+
+interface Props {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+}
+
+export class SentryErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+  };
+
+  public static getDerivedStateFromError(): State {
+    return { hasError: true };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: errorInfo.componentStack } },
+    });
+  }
+
+  public render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold">Something went wrong</h2>
+            <button
+              className="mt-4 rounded bg-primary px-4 py-2 text-white"
+              onClick={() => this.setState({ hasError: false })}
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+================
+File: src/components/error-boundary/with-error-boundary.tsx
+================
+import { ErrorBoundary, FallbackProps } from 'react-error-boundary';
+import { GlobalError } from './global-error';
+
+export function withErrorBoundary<P extends object>(
+  Component: React.ComponentType<P>,
+  fallback: React.ComponentType<FallbackProps> = GlobalError
+) {
+  return function WithErrorBoundary(props: P) {
+    return (
+      <ErrorBoundary FallbackComponent={fallback}>
+        <Component {...props} />
+      </ErrorBoundary>
+    );
+  };
 }
 
 ================
@@ -3244,7 +4641,7 @@ export function EventCard({ event }: EventCardProps) {
         </div>
         <div className="flex items-center space-x-2 text-sm">
           <MapPin className="h-4 w-4" />
-          <span>{event.location.venue}</span>
+          <span>{event.location?.venue}</span>
         </div>
         <div className="flex items-center space-x-2 text-sm">
           <Users className="h-4 w-4" />
@@ -3303,6 +4700,7 @@ export function EventChat({ eventId }: { eventId: string }) {
     });
 
     return () => {
+      pusherClient.unbind_all();
       pusherClient.unsubscribe(`event-${eventId}`);
     };
   }, [eventId]);
@@ -3446,15 +4844,24 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
-  title: z.string().min(2).max(100),
-  description: z.string().min(10),
-  startDate: z.date(),
-  endDate: z.date(),
-  venue: z.string().min(2),
-  address: z.string().min(5),
+  title: z.string().min(2, "Title must be at least 2 characters").max(100),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  startDate: z.date({
+    required_error: "Start date is required",
+  }),
+  endDate: z.date({
+    required_error: "End date is required",
+  }),
+  venue: z.string().min(2, "Venue is required"),
+  address: z.string().min(5, "Address is required"),
   capacity: z.string().transform(Number),
   visibility: z.enum(["public", "private"]),
-  recurring: z.enum(["none", "daily", "weekly", "monthly"]),
+  recurring: z.enum(["none", "daily", "weekly", "monthly"])
+}).refine(data => {
+  return data.endDate >= data.startDate;
+}, {
+  message: "End date must be after start date",
+  path: ["endDate"],
 });
 
 interface EventFormProps {
@@ -3734,7 +5141,7 @@ export function EventForm({ event, isEditing = false }: EventFormProps) {
         </div>
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading 
+        {isLoading 
             ? (isEditing ? "Updating..." : "Creating...") 
             : (isEditing ? "Update Event" : "Create Event")
           }
@@ -3750,10 +5157,11 @@ File: src/components/events/guest-list.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
+import { Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -3762,47 +5170,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import {
-  MoreVertical,
-  UserPlus,
-  Mail,
-  Check,
-  X,
-  Clock,
-  Users,
-  UserCog,
-  Trash,
-} from "lucide-react";
-import { format } from "date-fns";
+import { pusherClient } from "@/lib/pusher";
 
 interface Guest {
   id: string;
@@ -3812,38 +5182,48 @@ interface Guest {
   role: "attendee" | "coHost" | "moderator";
   checkedIn: boolean;
   checkedInAt?: string;
-  dietaryPreferences?: string[];
-  plusOne?: {
-    name: string;
-    dietaryPreferences: string[];
-  };
-  invitedAt: string;
-  responseDate?: string;
 }
 
-interface GuestListProps {
-  eventId: string;
-  isOrganizer?: boolean;
-}
-
-export function GuestList({ eventId, isOrganizer = false }: GuestListProps) {
+export function GuestList({ eventId }: { eventId: string }) {
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
-  const [search, setSearch] = useState("");
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
-  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
-  const { user } = useUser();
   const { toast } = useToast();
-
-  // Form states for inviting guests
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("attendee");
-  const [inviteMessage, setInviteMessage] = useState("");
 
   useEffect(() => {
     fetchGuests();
+
+    // Initialize Pusher only if we have the required credentials
+    if (process.env.NEXT_PUBLIC_PUSHER_APP_KEY && process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
+      try {
+        const channel = pusherClient.subscribe(`event-${eventId}`);
+        
+        channel.bind("guest-updated", (updatedGuest: Guest) => {
+          setGuests(currentGuests =>
+            currentGuests.map(guest =>
+              guest.id === updatedGuest.id ? updatedGuest : guest
+            )
+          );
+        });
+
+        channel.bind("guest-added", (newGuest: Guest) => {
+          setGuests(currentGuests => [...currentGuests, newGuest]);
+        });
+
+        channel.bind("guest-removed", (removedGuestId: string) => {
+          setGuests(currentGuests =>
+            currentGuests.filter(guest => guest.id !== removedGuestId)
+          );
+        });
+
+        return () => {
+          channel.unbind_all();
+          channel.unsubscribe();
+        };
+      } catch (error) {
+        console.error("Pusher initialization error:", error);
+      }
+    }
   }, [eventId]);
 
   const fetchGuests = async () => {
@@ -3853,59 +5233,22 @@ export function GuestList({ eventId, isOrganizer = false }: GuestListProps) {
       const data = await response.json();
       setGuests(data);
     } catch (error) {
-      console.error("Error fetching guests:", error);
       toast({
-        variant: "destructive",
         title: "Error",
         description: "Failed to load guest list",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const inviteGuest = async () => {
-    try {
-      const response = await fetch(`/api/events/${eventId}/guests`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: inviteEmail,
-          role: inviteRole,
-          message: inviteMessage,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to invite guest");
-
-      toast({
-        title: "Success",
-        description: "Invitation sent successfully",
-      });
-
-      setInviteDialogOpen(false);
-      clearInviteForm();
-      fetchGuests();
-    } catch (error) {
-      console.error("Error inviting guest:", error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to send invitation",
-      });
-    }
-  };
-
-  const updateGuestStatus = async (guestId: string, newStatus: string) => {
+  const updateGuestStatus = async (guestId: string, status: Guest["status"]) => {
     try {
       const response = await fetch(`/api/events/${eventId}/guests/${guestId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: newStatus }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
       });
 
       if (!response.ok) throw new Error("Failed to update guest status");
@@ -3915,13 +5258,12 @@ export function GuestList({ eventId, isOrganizer = false }: GuestListProps) {
         description: "Guest status updated",
       });
 
-      fetchGuests();
+      fetchGuests(); // Refresh the guest list
     } catch (error) {
-      console.error("Error updating guest status:", error);
       toast({
-        variant: "destructive",
         title: "Error",
         description: "Failed to update guest status",
+        variant: "destructive",
       });
     }
   };
@@ -3939,438 +5281,110 @@ export function GuestList({ eventId, isOrganizer = false }: GuestListProps) {
         description: "Guest removed successfully",
       });
 
-      fetchGuests();
+      fetchGuests(); // Refresh the guest list
     } catch (error) {
-      console.error("Error removing guest:", error);
       toast({
-        variant: "destructive",
         title: "Error",
         description: "Failed to remove guest",
+        variant: "destructive",
       });
     }
   };
 
-  const clearInviteForm = () => {
-    setInviteEmail("");
-    setInviteRole("attendee");
-    setInviteMessage("");
-  };
+  const filteredGuests = guests.filter(
+    guest =>
+      guest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      guest.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const filteredGuests = guests.filter((guest) => {
-    const matchesFilter =
-      filter === "all" || guest.status === filter;
-    const matchesSearch =
-      guest.name.toLowerCase().includes(search.toLowerCase()) ||
-      guest.email.toLowerCase().includes(search.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: Guest["status"]) => {
     const colors = {
       invited: "bg-blue-100 text-blue-800",
       confirmed: "bg-green-100 text-green-800",
       declined: "bg-red-100 text-red-800",
       waitlist: "bg-yellow-100 text-yellow-800",
     };
-    return colors[status as keyof typeof colors] || "bg-gray-100 text-gray-800";
+    return colors[status];
   };
 
   if (loading) {
-    return <GuestListSkeleton />;
+    return <div>Loading guest list...</div>;
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Search guests..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
-          />
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Guests</SelectItem>
-              <SelectItem value="invited">Invited</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="declined">Declined</SelectItem>
-              <SelectItem value="waitlist">Waitlist</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isOrganizer && (
-          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Invite Guest
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Invite Guest</DialogTitle>
-                <DialogDescription>
-                  Send an invitation to join the event
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    placeholder="Enter email address"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={inviteRole} onValueChange={setInviteRole}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="attendee">Attendee</SelectItem>
-                      <SelectItem value="coHost">Co-Host</SelectItem>
-                      <SelectItem value="moderator">Moderator</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="message">Personal Message (Optional)</Label>
-                  <Textarea
-                    id="message"
-                    placeholder="Add a personal message..."
-                    value={inviteMessage}
-                    onChange={(e) => setInviteMessage(e.target.value)}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={inviteGuest}>Send Invitation</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
+      <div className="relative">
+        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search guests..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-8"
+        />
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Guest</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Invited</TableHead>
-              <TableHead>Check-in</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredGuests.map((guest) => (
-              <TableRow key={guest.id}>
-                <TableCell>
-                  <div className="flex items-center space-x-3">
-                    <Avatar>
-                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(guest.name)}`} />
-                      <AvatarFallback>{guest.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">{guest.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {guest.email}
-                      </div>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className={getStatusColor(guest.status)}>
-                    {guest.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <span className="capitalize">{guest.role}</span>
-                </TableCell>
-                <TableCell>
-                  {format(new Date(guest.invitedAt), "MMM d, yyyy")}
-                </TableCell>
-                <TableCell>
-                  {guest.checkedIn ? (
-                    <div className="text-sm text-muted-foreground">
-                      {format(new Date(guest.checkedInAt!), "MMM d, h:mm a")}
-                    </div>
-                  ) : (
-                    <Badge variant="outline">Not Checked In</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {isOrganizer && (
-                        <>
-                          <DropdownMenuItem 
-                            onClick={() => updateGuestStatus(guest.id, "confirmed")}
-                            disabled={guest.status === "confirmed"}
-                          >
-                            <Check className="mr-2 h-4 w-4" />
-                            Confirm
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => updateGuestStatus(guest.id, "waitlist")}
-                            disabled={guest.status === "waitlist"}
-                          >
-                            <Clock className="mr-2 h-4 w-4" />
-                            Move to Waitlist
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <UserCog className="mr-2 h-4 w-4" />
-                            Change Role
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                        </>
-                      )}
-                      <DropdownMenuItem onClick={() => {
-                        setSelectedGuest(guest);
-                        setGuestDialogOpen(true);
-                      }}>
-                        <Users className="mr-2 h-4 w-4" />
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => {
-                        window.location.href = `mailto:${guest.email}`;
-                      }}>
-                        <Mail className="mr-2 h-4 w-4" />
-                        Send Email
-                      </DropdownMenuItem>
-                      {isOrganizer && (
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => removeGuest(guest.id)}
-                        >
-                          <Trash className="mr-2 h-4 w-4" />
-                          Remove
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-            {filteredGuests.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <div className="flex flex-col items-center space-y-2">
-                    <Users className="h-8 w-8 text-muted-foreground" />
-                    <p className="text-muted-foreground">No guests found</p>
-                    {search && (
-                      <Button 
-                        variant="link" 
-                        onClick={() => setSearch("")}
-                      >
-                        Clear search
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Guest Details Dialog */}
-      <Dialog open={guestDialogOpen} onOpenChange={setGuestDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Guest Details</DialogTitle>
-          </DialogHeader>
-          {selectedGuest && (
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage 
-                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${
-                      encodeURIComponent(selectedGuest.name)
-                    }`} 
-                  />
-                  <AvatarFallback>{selectedGuest.name.charAt(0)}</AvatarFallback>
+      <ScrollArea className="h-[400px] pr-4">
+        <div className="space-y-2">
+          {filteredGuests.map((guest) => (
+            <div
+              key={guest.id}
+              className="flex items-center justify-between rounded-lg border p-2"
+            >
+              <div className="flex items-center gap-2">
+                <Avatar>
+                  <AvatarImage src={`https://avatar.vercel.sh/${guest.email}`} />
+                  <AvatarFallback>{guest.name[0]}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="text-lg font-medium">{selectedGuest.name}</h3>
-                  <p className="text-sm text-muted-foreground">{selectedGuest.email}</p>
+                  <div className="font-medium">{guest.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {guest.email}
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Status</Label>
-                  <div className="mt-1">
-                    <Badge variant="secondary" className={getStatusColor(selectedGuest.status)}>
-                      {selectedGuest.status}
-                    </Badge>
-                  </div>
-                </div>
-                <div>
-                  <Label>Role</Label>
-                  <p className="mt-1 capitalize">{selectedGuest.role}</p>
-                </div>
-                <div>
-                  <Label>Invited On</Label>
-                  <p className="mt-1">
-                    {format(new Date(selectedGuest.invitedAt), "PPP")}
-                  </p>
-                </div>
-                <div>
-                  <Label>Response Date</Label>
-                  <p className="mt-1">
-                    {selectedGuest.responseDate
-                      ? format(new Date(selectedGuest.responseDate), "PPP")
-                      : "No response yet"}
-                  </p>
-                </div>
-              </div>
-
-              {selectedGuest.dietaryPreferences && selectedGuest.dietaryPreferences.length > 0 && (
-                <div>
-                  <Label>Dietary Preferences</Label>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {selectedGuest.dietaryPreferences.map((pref) => (
-                      <Badge key={pref} variant="outline">
-                        {pref}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedGuest.plusOne && (
-                <div>
-                  <Label>Plus One</Label>
-                  <div className="mt-1 space-y-2">
-                    <p className="text-sm font-medium">{selectedGuest.plusOne.name}</p>
-                    {selectedGuest.plusOne.dietaryPreferences?.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {selectedGuest.plusOne.dietaryPreferences.map((pref) => (
-                          <Badge key={pref} variant="outline" className="text-xs">
-                            {pref}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <Label>Check-in Status</Label>
-                <div className="mt-1">
-                  {selectedGuest.checkedIn ? (
-                    <div className="space-y-1">
-                      <Badge variant="default">Checked In</Badge>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(selectedGuest.checkedInAt!), "PPP 'at' p")}
-                      </p>
-                    </div>
-                  ) : (
-                    <Badge variant="outline">Not Checked In</Badge>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <Badge className={getStatusColor(guest.status)}>
+                  {guest.status}
+                </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      •••
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => updateGuestStatus(guest.id, "confirmed")}
+                    >
+                      Confirm
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => updateGuestStatus(guest.id, "declined")}
+                    >
+                      Decline
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => updateGuestStatus(guest.id, "waitlist")}
+                    >
+                      Move to Waitlist
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-red-600"
+                      onClick={() => removeGuest(guest.id)}
+                    >
+                      Remove
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setGuestDialogOpen(false)}>
-              Close
-            </Button>
-            {isOrganizer && selectedGuest && !selectedGuest.checkedIn && (
-              <Button 
-                onClick={() => {
-                  updateGuestStatus(selectedGuest.id, "confirmed");
-                  setGuestDialogOpen(false);
-                }}
-                disabled={selectedGuest.status === "confirmed"}
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Confirm Guest
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function GuestListSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-[180px]" />
+          ))}
         </div>
-        <Skeleton className="h-10 w-[120px]" />
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Guest</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Invited</TableHead>
-              <TableHead>Check-in</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[1, 2, 3, 4].map((index) => (
-              <TableRow key={index}>
-                <TableCell>
-                  <div className="flex items-center space-x-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="space-y-1">
-                      <Skeleton className="h-4 w-[150px]" />
-                      <Skeleton className="h-3 w-[120px]" />
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-[80px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-[60px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-4 w-[100px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-6 w-[120px]" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-8 w-8" />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -5244,7 +6258,6 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
   return <NextThemesProvider {...props}>{children}</NextThemesProvider>
 }
 
-
 ================
 File: src/components/mode-toggle.tsx
 ================
@@ -5438,6 +6451,31 @@ const hr = {
 };
 
 export default EventInvitationEmail;
+
+================
+File: src/hooks/use-error-boundary.ts
+================
+import { useCallback, useState } from 'react';
+
+export function useErrorBoundary() {
+  const [hasError, setHasError] = useState(false);
+
+  const handleError = useCallback((error: Error) => {
+    setHasError(true);
+    // Log to your error reporting service
+    console.error('Error caught by boundary:', error);
+  }, []);
+
+  const resetError = useCallback(() => {
+    setHasError(false);
+  }, []);
+
+  return {
+    hasError,
+    handleError,
+    resetError,
+  };
+}
 
 ================
 File: src/hooks/use-toast.ts
@@ -5638,8 +6676,78 @@ function useToast() {
 export { useToast, toast }
 
 ================
+File: src/lib/actions/events.ts
+================
+'use server'
+
+import { auth } from "@clerk/nextjs/server";
+import { revalidatePath } from "next/cache";
+import dbConnect from "@/lib/db/connection";
+import { Event } from "@/lib/db/models/event";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+
+const eventSchema = z.object({
+  title: z.string().min(1),
+  description: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  venue: z.string(),
+  address: z.string(),
+  capacity: z.number().min(1)
+});
+
+export async function createEvent(formData: FormData) {
+  const { userId } = await auth();
+  
+  if (!userId) {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    await dbConnect();
+    
+    const validatedFields = eventSchema.safeParse({
+      title: formData.get('title'),
+      description: formData.get('description'),
+      startDate: formData.get('startDate'),
+      endDate: formData.get('endDate'),
+      venue: formData.get('venue'),
+      address: formData.get('address'),
+      capacity: Number(formData.get('capacity'))
+    });
+
+    if (!validatedFields.success) {
+      return {
+        error: "Invalid form data"
+      };
+    }
+
+    const event = await Event.create({
+      ...validatedFields.data,
+      location: {
+        venue: validatedFields.data.venue,
+        address: validatedFields.data.address,
+      },
+      organizerId: userId,
+      status: 'draft',
+      visibility: 'private'
+    });
+
+    revalidatePath('/events');
+    redirect(`/events/${event._id}`);
+  } catch (error) {
+    return {
+      error: "Failed to create event"
+    };
+  }
+}
+
+================
 File: src/lib/activity/notifications.ts
 ================
+// src/lib/activity/notifications.ts
+
 import mongoose from 'mongoose';
 import { pusherServer } from "@/lib/pusher";
 
@@ -5657,6 +6765,8 @@ export const ActivityTypes = {
   GUEST_CANCELLED: 'guest.cancelled',
   GUEST_CHECKED_IN: 'guest.checked_in',
   GUEST_REMOVED: 'guest.removed',
+  GUEST_WAITLISTED: 'guest.waitlisted',
+  GUEST_PROMOTED: 'guest.promoted', // When moved from waitlist to attendee
   
   // Communication activities
   COMMENT_ADDED: 'comment.added',
@@ -5702,6 +6812,10 @@ const activitySchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+
+// Add indexes
+activitySchema.index({ type: 1, eventId: 1 });
+activitySchema.index({ userId: 1, createdAt: -1 });
 
 // Create the model
 const Activity = mongoose.models.Activity || mongoose.model('Activity', activitySchema);
@@ -5764,8 +6878,10 @@ export function formatActivityMessage(activity: Activity): string {
     [ActivityTypes.GUEST_CANCELLED]: "cancelled their registration",
     [ActivityTypes.GUEST_CHECKED_IN]: "checked in to the event",
     [ActivityTypes.GUEST_REMOVED]: "removed a guest",
+    [ActivityTypes.GUEST_WAITLISTED]: "joined the waitlist",
+    [ActivityTypes.GUEST_PROMOTED]: "was promoted from the waitlist",
     [ActivityTypes.COMMENT_ADDED]: "added a comment",
-    [ActivityTypes.MESSAGE_SENT]: "sent a message",
+    [ActivityTypes.MESSAGE_SENT]: "sent a message"
   };
 
   return messages[activity.type] || "performed an action";
@@ -5773,6 +6889,266 @@ export function formatActivityMessage(activity: Activity): string {
 
 // Export activity types for use in other files
 export { Activity as ActivityModel };
+
+================
+File: src/lib/api/error-handler.ts
+================
+import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
+
+export interface ApiError extends Error {
+  code?: string;
+  statusCode?: number;
+  data?: any;
+}
+
+export class ApiError extends Error {
+  constructor(message: string, statusCode: number = 500, code?: string, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+    this.code = code;
+    this.data = data;
+  }
+}
+
+export function handleApiError(error: unknown) {
+  console.error('API Error:', error);
+
+  // Log to Sentry
+  Sentry.captureException(error);
+
+  if (error instanceof ApiError) {
+    return NextResponse.json(
+      {
+        error: {
+          message: error.message,
+          code: error.code,
+          data: error.data,
+        },
+      },
+      { status: error.statusCode }
+    );
+  }
+
+  // Handle unknown errors
+  return NextResponse.json(
+    {
+      error: {
+        message: 'Internal Server Error',
+        code: 'INTERNAL_SERVER_ERROR',
+      },
+    },
+    { status: 500 }
+  );
+}
+
+================
+File: src/lib/auth/rate-limit.ts
+================
+import { Redis } from 'ioredis';
+import { NextResponse } from 'next/server';
+
+const redis = new Redis(process.env.REDIS_URL || '');
+
+interface RateLimitConfig {
+  limit: number;
+  window: number; // in seconds
+}
+
+const defaultConfig: RateLimitConfig = {
+  limit: 100,
+  window: 60
+};
+
+export async function rateLimit(
+  ip: string,
+  endpoint: string,
+  config: RateLimitConfig = defaultConfig
+) {
+  const key = `rate-limit:${ip}:${endpoint}`;
+  
+  const requests = await redis.incr(key);
+  
+  if (requests === 1) {
+    await redis.expire(key, config.window);
+  }
+
+  if (requests > config.limit) {
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: {
+        'Retry-After': config.window.toString()
+      }
+    });
+  }
+
+  return null;
+}
+
+================
+File: src/lib/auth/rbac.ts
+================
+// src/lib/auth/rbac.ts
+import { auth } from "@clerk/nextjs/server";
+import { User } from "@/lib/db/models/user.model";
+import { UserRole, Permission, PERMISSIONS } from "./types";
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!
+});
+
+export const rolePermissions: Record<UserRole, Permission[]> = {
+  ADMIN: [{ action: '*', resource: '*' }],
+  ORGANIZER: [
+    { action: PERMISSIONS.EVENTS.CREATE, resource: 'event' },
+    { action: PERMISSIONS.EVENTS.UPDATE, resource: 'event' },
+    { action: PERMISSIONS.EVENTS.DELETE, resource: 'event' },
+    { action: PERMISSIONS.EVENTS.MANAGE_GUESTS, resource: 'guests' }
+  ],
+  CO_HOST: [
+    { action: PERMISSIONS.EVENTS.UPDATE, resource: 'event' },
+    { action: PERMISSIONS.EVENTS.MANAGE_GUESTS, resource: 'guests' }
+  ],
+  ATTENDEE: [
+    { action: PERMISSIONS.EVENTS.READ, resource: 'event' }
+  ]
+};
+
+export async function getUserRole(): Promise<UserRole> {
+  const { userId } = await auth();
+  if (!userId) throw new Error('Unauthorized');
+
+  // Try cache first
+  const cachedRole = await redis.get(`user_role:${userId}`);
+  if (cachedRole) return cachedRole as UserRole;
+
+  // If not in cache, check database
+  const user = await User.findOne({ clerkId: userId }).select('role');
+  if (!user) {
+    // Create user if doesn't exist
+    const newUser = await User.create({
+      clerkId: userId,
+      role: UserRole.ATTENDEE
+    });
+    return newUser.role;
+  }
+
+  // Cache the role for 1 hour
+  await redis.setex(`user_role:${userId}`, 3600, user.role);
+  return user.role;
+}
+
+export async function hasPermission(permission: Permission): Promise<boolean> {
+  try {
+    const role = await getUserRole();
+    const permissions = rolePermissions[role];
+
+    return permissions.some(p => 
+      (p.action === '*' && p.resource === '*') ||
+      (p.action === permission.action && p.resource === permission.resource)
+    );
+  } catch {
+    return false;
+  }
+}
+
+================
+File: src/lib/auth/roles.ts
+================
+export enum UserRole {
+    ADMIN = 'ADMIN',
+    ORGANIZER = 'ORGANIZER',
+    CO_HOST = 'CO_HOST',
+    ATTENDEE = 'ATTENDEE'
+}
+  
+export interface Permission {
+    action: string;
+    resource: string;
+}
+  
+export const rolePermissions: Record<UserRole, Permission[]> = {
+    ADMIN: [
+      { action: '*', resource: '*' }
+    ],
+    ORGANIZER: [
+      { action: 'create', resource: 'event' },
+      { action: 'update', resource: 'event' },
+      { action: 'delete', resource: 'event' },
+      { action: 'manage', resource: 'guests' },
+      { action: 'export', resource: 'data' }
+    ],
+    CO_HOST: [
+      { action: 'update', resource: 'event' },
+      { action: 'manage', resource: 'guests' }
+    ],
+    ATTENDEE: [
+      { action: 'view', resource: 'event' },
+      { action: 'chat', resource: 'event' }
+    ]
+}
+
+================
+File: src/lib/auth/types.ts
+================
+export enum UserRole {
+    ADMIN = 'ADMIN',
+    ORGANIZER = 'ORGANIZER',
+    CO_HOST = 'CO_HOST',
+    ATTENDEE = 'ATTENDEE'
+}
+  
+export interface Permission {
+    action: string;
+    resource: string;
+}
+  
+export const PERMISSIONS = {
+    EVENTS: {
+      CREATE: 'events:create',
+      READ: 'events:read',
+      UPDATE: 'events:update',
+      DELETE: 'events:delete',
+      MANAGE_GUESTS: 'events:manage_guests'
+    },
+    ADMIN: {
+      MANAGE_USERS: 'admin:manage_users',
+      MANAGE_ROLES: 'admin:manage_roles'
+    }
+} as const;
+
+================
+File: src/lib/constants/event-categories.ts
+================
+export const EVENT_CATEGORIES = [
+    "Conference",
+    "Workshop",
+    "Webinar",
+    "Meetup",
+    "Training",
+    "Social",
+    "Networking",
+    "Other"
+] as const;
+  
+export const EVENT_TAGS = [
+    "Technology",
+    "Business",
+    "Education",
+    "Entertainment",
+    "Health",
+    "Sports",
+    "Art",
+    "Music",
+    "Science",
+    "Professional Development"
+] as const;
+  
+export type EventCategory = typeof EVENT_CATEGORIES[number];
+export type EventTag = typeof EVENT_TAGS[number];
 
 ================
 File: src/lib/db/models/activity.ts
@@ -5995,8 +7371,8 @@ const EventSchema = new Schema({
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   location: {
-    venue: { type: String, required: true },
-    address: { type: String, required: true },
+    venue: { type: String, required: true, default: 'No venue specified' },
+    address: { type: String, required: true, default: 'No address specified' },
     coordinates: {
       lat: Number,
       lng: Number
@@ -6035,6 +7411,12 @@ const EventSchema = new Schema({
     }
   }
 });
+
+// Create indexes
+EventSchema.index({ organizerId: 1, startDate: -1 });
+EventSchema.index({ status: 1 });
+EventSchema.index({ "location?.venue": 1 });
+EventSchema.index({ title: "text", description: "text" });
 
 const Event = mongoose.models.Event || mongoose.model<IEvent>("Event", EventSchema);
 
@@ -6094,7 +7476,9 @@ const guestSchema = new mongoose.Schema({
 });
 
 // Add compound index to prevent duplicate registrations
-guestSchema.index({ eventId: 1, userId: 1 }, { unique: true });
+guestSchema.index({ eventId: 1, status: 1 });
+guestSchema.index({ userId: 1, eventId: 1 }, { unique: true });
+guestSchema.index({ email: 1 });
 
 export const Guest = mongoose.models.Guest || mongoose.model('Guest', guestSchema);
 
@@ -6144,8 +7528,143 @@ const messageSchema = new mongoose.Schema({
 });
 
 messageSchema.index({ eventId: 1, createdAt: -1 });
+messageSchema.index({ senderId: 1 });
 
 export const Message = mongoose.models.Message || mongoose.model('Message', messageSchema);
+
+================
+File: src/lib/db/models/user.model.ts
+================
+import mongoose from 'mongoose';
+import { UserRole } from '@/lib/auth/types';
+
+const userSchema = new mongoose.Schema({
+  clerkId: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  role: {
+    type: String,
+    enum: Object.values(UserRole),
+    default: UserRole.ATTENDEE
+  },
+  permissions: [{
+    type: String
+  }],
+  lastLogin: Date,
+  apiKey: String,
+  apiKeyLastUsed: Date
+}, { timestamps: true });
+
+export const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+================
+File: src/lib/db/models/waitlist.ts
+================
+import mongoose, { Schema, Document } from "mongoose";
+
+export interface IWaitlist extends Document {
+  eventId: string;
+  userId: string;
+  position: number;
+  joinedAt: Date;
+  status: "waiting" | "promoted" | "expired";
+  notificationsSent: {
+    promoted?: Date;
+    reminder?: Date;
+  };
+}
+
+const WaitlistSchema = new Schema({
+  eventId: { type: String, required: true },
+  userId: { type: String, required: true },
+  position: { type: Number, required: true },
+  joinedAt: { type: Date, default: Date.now },
+  status: {
+    type: String,
+    enum: ["waiting", "promoted", "expired"],
+    default: "waiting"
+  },
+  notificationsSent: {
+    promoted: Date,
+    reminder: Date
+  }
+}, {
+  timestamps: true
+});
+
+// Create compound index for unique waitlist entries
+WaitlistSchema.index({ eventId: 1, userId: 1 }, { unique: true });
+WaitlistSchema.index({ eventId: 1, position: 1 });
+
+export const Waitlist = mongoose.models.Waitlist || mongoose.model<IWaitlist>("Waitlist", WaitlistSchema);
+
+================
+File: src/lib/db/utils/monitor.ts
+================
+import mongoose from 'mongoose';
+import { analyzeQueryPerformance } from './performance';
+
+export async function monitorDatabasePerformance(
+    model: mongoose.Model<any>,
+    operation: string,
+    query: object
+) {
+    if (process.env.NODE_ENV === 'development') {
+      const startTime = Date.now();
+      const stats = await analyzeQueryPerformance(model, query);
+      const duration = Date.now() - startTime;
+  
+      console.log(`
+        Operation: ${operation}
+        Duration: ${duration}ms
+        Docs Examined: ${stats.totalDocsExamined}
+        Docs Returned: ${stats.nReturned}
+        Indexes Used: ${stats.indexesUsed.join(', ') || 'None'}
+      `);
+    }
+}
+
+================
+File: src/lib/db/utils/performance.ts
+================
+import mongoose from 'mongoose';
+
+interface ExecutionStats {
+  executionTimeMillis: number;
+  totalDocsExamined: number;
+  nReturned: number;
+  indexesUsed: string[];
+}
+
+export async function analyzeQueryPerformance(
+  model: mongoose.Model<any>,
+  query: object,
+  options: object = {}
+): Promise<ExecutionStats> {
+  try {
+    const explanation = await model.find(query, null, options)
+      .explain("executionStats") as any;
+
+    return {
+      executionTimeMillis: explanation.executionStats.executionTimeMillis,
+      totalDocsExamined: explanation.executionStats.totalDocsExamined,
+      nReturned: explanation.executionStats.nReturned,
+      indexesUsed: explanation.queryPlanner.winningPlan.inputStage?.indexName 
+        ? [explanation.queryPlanner.winningPlan.inputStage.indexName]
+        : []
+    };
+  } catch (error) {
+    console.error('Query performance analysis failed:', error);
+    throw error;
+  }
+}
 
 ================
 File: src/lib/db/connection.ts
@@ -6173,6 +7692,9 @@ let cached = global.mongoose || { conn: null, promise: null };
 if (!global.mongoose) {
   global.mongoose = cached;
 }
+
+mongoose.set('autoIndex', false); // Disable in production
+mongoose.set('maxTimeMS', 30000); // Set operation timeout
 
 async function dbConnect() {
   if (cached.conn) {
@@ -6397,6 +7919,96 @@ export function exportToCSV(data: any[], filename: string) {
 }
 
 ================
+File: src/lib/validation/event.ts
+================
+import * as z from "zod";
+import { EVENT_CATEGORIES, EVENT_TAGS } from "@/lib/constants/event-categories";
+
+export const eventFormSchema = z.object({
+  title: z.string().min(2).max(100),
+  description: z.string().min(10),
+  startDate: z.date(),
+  endDate: z.date(),
+  registrationDeadline: z.date(),
+  categories: z.array(z.string()).min(1, "Select at least one category"),
+  tags: z.array(z.string()),
+  venue: z.string().min(2),
+  address: z.string().min(5),
+  isVirtual: z.boolean().default(false),
+  virtualLink: z.string().url().optional().nullable(),
+  isHybrid: z.boolean().default(false),
+  capacity: z.string().transform(Number),
+  visibility: z.enum(["public", "private"]),
+  recurring: z.object({
+    enabled: z.boolean().default(false),
+    pattern: z.enum(["daily", "weekly", "monthly"]).optional().nullable(),
+    interval: z.number().optional().nullable(),
+    endDate: z.date().optional().nullable(),
+    daysOfWeek: z.array(z.number()).optional().nullable(),
+    dayOfMonth: z.number().optional().nullable(),
+  }),
+  waitlist: z.object({
+    enabled: z.boolean().default(false),
+    maxSize: z.number().min(0).default(0),
+  }),
+}).refine(data => data.endDate > data.startDate, {
+  message: "End date must be after start date",
+  path: ["endDate"],
+}).refine(data => data.registrationDeadline <= data.startDate, {
+  message: "Registration deadline must be before or on the event start date",
+  path: ["registrationDeadline"],
+});
+
+================
+File: src/lib/validation/sanitize.ts
+================
+import DOMPurify from 'isomorphic-dompurify';
+import { z } from 'zod';
+
+export function sanitizeInput(input: string): string {
+  return DOMPurify.sanitize(input.trim(), {
+    ALLOWED_TAGS: [], // Strip all HTML tags
+    ALLOWED_ATTR: [] // Strip all attributes
+  });
+}
+
+// Common validation schemas
+export const eventSchema = z.object({
+  title: z.string()
+    .min(3, 'Title must be at least 3 characters')
+    .max(100, 'Title must be less than 100 characters')
+    .transform(sanitizeInput),
+  
+  description: z.string()
+    .min(10, 'Description must be at least 10 characters')
+    .max(1000, 'Description must be less than 1000 characters')
+    .transform(sanitizeInput),
+  
+  startDate: z.date()
+    .min(new Date(), 'Start date must be in the future'),
+  
+  endDate: z.date(),
+  
+  location: z.object({
+    venue: z.string().min(3).transform(sanitizeInput),
+    address: z.string().min(5).transform(sanitizeInput),
+    coordinates: z.object({
+      lat: z.number(),
+      lng: z.number()
+    }).optional()
+  }),
+  
+  capacity: z.number()
+    .min(1, 'Capacity must be at least 1')
+    .max(100000, 'Capacity must be less than 100,000'),
+  
+  visibility: z.enum(['public', 'private'])
+}).refine(data => data.endDate > data.startDate, {
+  message: "End date must be after start date",
+  path: ["endDate"]
+});
+
+================
 File: src/lib/auth.ts
 ================
 import { auth } from "@clerk/nextjs/server";
@@ -6467,6 +8079,89 @@ export async function addToGoogleCalendar(event: any, accessToken: string) {
 }
 
 ================
+File: src/lib/logger.ts
+================
+// src/lib/logger.ts
+import * as Sentry from '@sentry/nextjs';
+
+type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+interface LogData {
+  message: string;
+  [key: string]: any;
+}
+
+class Logger {
+  private context?: string;
+
+  constructor(context?: string) {
+    this.context = context;
+  }
+
+  private log(level: LogLevel, data: LogData) {
+    const timestamp = new Date().toISOString();
+    const logData = {
+      timestamp,
+      level,
+      context: this.context,
+      ...data,
+    };
+
+    // Console logging
+    const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${
+      this.context ? `[${this.context}] ` : ''
+    }${data.message}`;
+
+    switch (level) {
+      case 'error':
+        console.error(logMessage, data);
+        Sentry.captureException(data.error || new Error(data.message), {
+          extra: data,
+        });
+        break;
+      case 'warn':
+        console.warn(logMessage, data);
+        Sentry.captureMessage(data.message, {
+          level: 'warning',
+          extra: data,
+        });
+        break;
+      case 'info':
+        console.info(logMessage, data);
+        break;
+      case 'debug':
+        if (process.env.NODE_ENV === 'development') {
+          console.debug(logMessage, data);
+        }
+        break;
+    }
+  }
+
+  info(message: string, data: Record<string, any> = {}) {
+    this.log('info', { message, ...data });
+  }
+
+  warn(message: string, data: Record<string, any> = {}) {
+    this.log('warn', { message, ...data });
+  }
+
+  error(message: string, error?: Error, data: Record<string, any> = {}) {
+    this.log('error', { message, error, ...data });
+  }
+
+  debug(message: string, data: Record<string, any> = {}) {
+    this.log('debug', { message, ...data });
+  }
+}
+
+export const logWebhookError = async (error: any, eventType: string) => {
+  console.error(`Webhook Error (${eventType}):`, error);
+  // Add your production logging service here (e.g., Sentry, LogRocket)
+};
+
+export const logger = new Logger();
+
+================
 File: src/lib/pusher.ts
 ================
 import PusherServer from "pusher";
@@ -6474,18 +8169,42 @@ import PusherClient from "pusher-js";
 
 export const pusherServer = new PusherServer({
   appId: process.env.PUSHER_APP_ID!,
-  key: process.env.NEXT_PUBLIC_PUSHER_KEY!,
+  key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
   secret: process.env.PUSHER_SECRET!,
-  cluster: "eu",
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
   useTLS: true,
 });
 
 export const pusherClient = new PusherClient(
-  process.env.NEXT_PUBLIC_PUSHER_KEY!,
+  process.env.NEXT_PUBLIC_PUSHER_APP_KEY!,
   {
-    cluster: "eu",
+    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
   }
 );
+
+================
+File: src/lib/rate-limit.ts
+================
+import { Redis } from '@upstash/redis';
+import { Ratelimit } from '@upstash/ratelimit';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!
+});
+
+const limiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, '10 s'),
+});
+
+export async function rateLimit(identifier: string, endpoint: string) {
+  const { success, limit, reset, remaining } = await limiter.limit(
+    `${identifier}:${endpoint}`
+  );
+  
+  return { success, limit, reset, remaining };
+}
 
 ================
 File: src/lib/utils.ts
@@ -6529,6 +8248,87 @@ export function serializeEvent(event: any) {
 }
 
 ================
+File: src/mocks/browser.ts
+================
+import { setupWorker } from 'msw/browser';
+import { handlers } from './handlers';
+
+export const worker = setupWorker(...handlers);
+
+================
+File: src/mocks/handlers.ts
+================
+import { http, HttpResponse } from 'msw';
+
+export const handlers = [
+  // Events endpoints
+  http.get('/api/events', async () => {
+    return HttpResponse.json([
+      {
+        id: '1',
+        title: 'Mock Conference 2024',
+        description: 'A mock event for testing',
+        startDate: new Date('2024-12-01'),
+        endDate: new Date('2024-12-02'),
+        location: {
+          venue: 'Mock Venue',
+          address: '123 Test Street',
+        },
+        capacity: 100,
+        status: 'published',
+        visibility: 'public',
+        organizerId: 'user_123',
+        coHosts: []
+      }
+    ]);
+  }),
+
+  // Event stats endpoint
+  http.get('/api/events/stats', async () => {
+    return HttpResponse.json({
+      totalEvents: 10,
+      upcomingEvents: 5,
+      totalAttendees: 150,
+      averageAttendance: 85
+    });
+  }),
+
+  // Event activities endpoint
+  http.get('/api/activities', async () => {
+    return HttpResponse.json([
+      {
+        id: '1',
+        type: 'event_created',
+        eventId: '1',
+        userId: 'user_123',
+        createdAt: new Date().toISOString()
+      }
+    ]);
+  }),
+
+  // Guest management endpoints
+  http.get('/api/events/:eventId/guests', async () => {
+    return HttpResponse.json([
+      {
+        id: '1',
+        eventId: '1',
+        userId: 'guest_123',
+        status: 'confirmed',
+        checkedIn: false
+      }
+    ]);
+  })
+];
+
+================
+File: src/mocks/server.ts
+================
+import { setupServer } from 'msw/node';
+import { handlers } from './handlers';
+
+export const server = setupServer(...handlers);
+
+================
 File: src/types/event.ts
 ================
 interface Event {
@@ -6561,80 +8361,163 @@ interface Event {
   }
 
 ================
-File: src/middleware.ts
+File: src/instrumentation.ts
 ================
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import * as Sentry from "@sentry/nextjs";
 
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/forum(.*)'])
-
-export default clerkMiddleware(async (auth, req) => {
-  const { userId, redirectToSignIn } = await auth()
-
-  if (!userId && isProtectedRoute(req)) {
-    // Add custom logic to run before redirecting
-
-    const returnUrl = new URL(req.url).pathname;
-    
-    return redirectToSignIn({
-      returnBackUrl: returnUrl,
+export async function register() {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    Sentry.init({
+      dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+      tracesSampleRate: 1.0,
+      debug: process.env.NODE_ENV === "development",
+      integrations: [
+        // Add Node.js specific integrations
+        Sentry.httpIntegration(),
+        Sentry.nodeContextIntegration(),
+      ],
     });
   }
 
-  const isAuthRoute = req.url.includes('/sign-in') || req.url.includes('/sign-up');
-  if (userId && isAuthRoute) {
-    const dashboardUrl = new URL('/dashboard', req.url);
-    return Response.redirect(dashboardUrl);
+  if (process.env.NEXT_RUNTIME === "edge") {
+    Sentry.init({
+      dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+      tracesSampleRate: 1.0,
+      debug: process.env.NODE_ENV === "development",
+    });
   }
-})
-
-export const config = {
-  matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
-  ],
 }
 
 ================
-File: .gitignore
+File: src/middleware.ts
 ================
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse, type NextRequest } from "next/server";
+import { Redis } from '@upstash/redis';
+import { Ratelimit } from '@upstash/ratelimit';
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
+// Constants
+const RATE_LIMIT = 100;
+const RATE_LIMIT_WINDOW = '15 m';
 
-# testing
-/coverage
+// Route matchers
+const protectedRoutes = createRouteMatcher([
+  '/dashboard(.*)', 
+  '/forum(.*)',
+  '/events(.*)'
+]);
 
-# next.js
-/.next/
-/out/
+const authRoutes = createRouteMatcher([
+  '/sign-in(.*)',
+  '/sign-up(.*)'
+]);
 
-# production
-/build
+// Initialize Redis
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!
+});
 
-# misc
-.DS_Store
-*.pem
+// Initialize rate limiter
+const rateLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(RATE_LIMIT, RATE_LIMIT_WINDOW),
+  analytics: true,
+});
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# local env files
-.env*.local
+// Security headers
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+};
 
-# vercel
-.vercel
+// Helper functions
+async function handleRateLimit(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1';
+  const { success, remaining, reset } = await rateLimiter.limit(`${ip}:${req.nextUrl.pathname}`);
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+  if (!success) {
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: {
+        'X-RateLimit-Limit': RATE_LIMIT.toString(),
+        'X-RateLimit-Remaining': remaining.toString(),
+        'X-RateLimit-Reset': reset.toString(),
+      },
+    });
+  }
+  return null;
+}
+
+async function getUserRole(userId: string) {
+  const cachedRole = await redis.get(`user_role:${userId}`);
+  return cachedRole || 'ATTENDEE';
+}
+
+async function createSecureResponse(req: NextRequest, userId: string) {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-user-id', userId);
+  
+  const userRole = await getUserRole(userId);
+  requestHeaders.set('x-user-role', userRole.toString());
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+
+  // Add security headers
+  Object.entries(securityHeaders).forEach(([header, value]) => {
+    response.headers.set(header, value);
+  });
+
+  return response;
+}
+
+// Main middleware
+export default clerkMiddleware(async (auth, req) => {
+  try {
+    const { userId, redirectToSignIn } = await auth();
+
+    // Check rate limit
+    const rateLimitResponse = await handleRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    
+    // Handle authentication
+    if (!userId && protectedRoutes(req)) {
+      return redirectToSignIn({
+        returnBackUrl: new URL(req.url).pathname,
+      });
+    }
+
+    if (userId && authRoutes(req)) {
+      return Response.redirect(new URL('/dashboard', req.url));
+    }
+
+    // Add security headers and user info for authenticated requests
+    if (userId) {
+      return createSecureResponse(req, userId);
+    }
+
+    return NextResponse.next();
+  } catch (error) {
+    console.error('Middleware Error:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+});
+
+export const config = {
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/api/:path*',
+    '/(.*)',
+  ],
+};
+
 
 ================
 File: components.json
@@ -6661,27 +8544,184 @@ File: components.json
 }
 
 ================
+File: jest.config.ts
+================
+import type { Config } from 'jest';
+import nextJest from 'next/jest';
+
+const createJestConfig = nextJest({
+  dir: './',
+});
+
+const config: Config = {
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  testEnvironment: 'jest-environment-jsdom',
+  moduleNameMapper: {
+    '^@/components/(.*)$': '<rootDir>/src/components/$1',
+    '^@/lib/(.*)$': '<rootDir>/src/lib/$1',
+  },
+  collectCoverageFrom: [
+    'src/**/*.{js,jsx,ts,tsx}',
+    '!src/**/*.d.ts',
+    '!src/**/*.stories.{js,jsx,ts,tsx}',
+  ],
+  testMatch: [
+    '<rootDir>/src/**/__tests__/**/*.{js,jsx,ts,tsx}',
+    '<rootDir>/src/**/*.{spec,test}.{js,jsx,ts,tsx}',
+  ],
+};
+
+export default createJestConfig(config);
+
+================
+File: jest.setup.ts
+================
+// jest.setup.ts
+import '@testing-library/jest-dom';
+import 'whatwg-fetch';
+import { server } from './src/mocks/server';
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+================
 File: next.config.mjs
 ================
-// next.config.js
 /** @type {import('next').NextConfig} */
+
+import { withSentryConfig } from "@sentry/nextjs";
+
 const nextConfig = {
-    images: {
-      domains: ['res.cloudinary.com', 'uploadthing.com'],
-    },
-    env: {
-      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-    },
-    webpack: (config) => {
-      config.externals.push({
-        "utf-8-validate": "commonjs utf-8-validate",
-        bufferutil: "commonjs bufferutil"
-      });
-      return config;
-    },
+  // Image optimization configuration
+  images: {
+    domains: ['res.cloudinary.com', 'uploadthing.com'],
+    unoptimized: process.env.NODE_ENV === 'development',
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+  },
+
+  // Environment variables
+  env: {
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  },
+
+  // Security headers
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains'
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block'
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+          }
+        ]
+      }
+    ];
+  },
+
+  // Webpack configuration
+  webpack: (config, { isServer, dev }) => {
+    // Handle OpenTelemetry instrumentation warnings
+    config.ignoreWarnings = [
+      // Ignore warnings about critical dependency
+      /Critical dependency: the request of a dependency is an expression/,
+    ];
+
+    // Handle external packages that need special treatment
+    if (isServer) {
+      config.externals = [...config.externals,
+        'utf-8-validate',
+        'bufferutil',
+      ];
+    }
+
+    // Handle OpenTelemetry instrumentation packages
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        'perf_hooks': false,
+        'diagnostics_channel': false,
+      };
+    }
+
+    // Enable source maps in production
+    if (!dev && !isServer) {
+      config.devtool = 'source-map';
+    }
+
+    return config;
+  },
+
+  // Performance optimizations
+  swcMinify: true,
+  reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
+  generateEtags: true,
+
+  // Cache optimization
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
+
+  // Experimental features
+  experimental: {
+    serverComponentsExternalPackages: ['mongoose'],
+    instrumentationHook: true,    
+  },
+
+  // Redirects
+  async redirects() {
+    return [
+      {
+        source: '/home',
+        destination: '/',
+        permanent: true,
+      }
+    ];
   }
-  
-export default nextConfig
+};
+
+export default withSentryConfig(
+  nextConfig,
+  {
+    org: "feest",
+    project: "Shareflyt",
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    widenClientFileUpload: true,
+    transpileClientSDK: true,
+    tunnelRoute: "/monitoring",
+    hideSourceMaps: true,
+    disableLogger: true,
+  }
+);
 
 ================
 File: package.json
@@ -6705,6 +8745,7 @@ File: package.json
     "@radix-ui/react-dropdown-menu": "^2.1.2",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-popover": "^1.1.2",
+    "@radix-ui/react-radio-group": "^1.2.1",
     "@radix-ui/react-scroll-area": "^1.2.0",
     "@radix-ui/react-select": "^2.1.2",
     "@radix-ui/react-separator": "^1.1.0",
@@ -6715,16 +8756,24 @@ File: package.json
     "@radix-ui/react-tooltip": "^1.1.3",
     "@react-email/components": "^0.0.25",
     "@react-google-maps/api": "^2.20.3",
+    "@sentry/nextjs": "^8.36.0",
+    "@tanstack/react-query": "^5.59.16",
     "@uploadthing/react": "^7.1.0",
+    "@upstash/ratelimit": "^2.0.4",
+    "@upstash/redis": "^1.34.3",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "csv-writer": "^1.6.0",
     "date-fns": "^2.30.0",
     "exceljs": "^4.4.0",
+    "express-rate-limit": "^7.4.1",
     "file-saver": "^2.0.5",
     "google-auth-library": "^9.14.2",
     "googleapis": "^144.0.0",
+    "ioredis": "^5.4.1",
+    "isomorphic-dompurify": "^2.16.0",
+    "jest": "^29.7.0",
     "lucide-react": "^0.454.0",
     "moment": "^2.30.1",
     "mongoose": "^8.7.3",
@@ -6738,10 +8787,12 @@ File: package.json
     "react-big-calendar": "^1.15.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18",
+    "react-error-boundary": "^4.1.2",
     "react-hook-form": "^7.53.1",
     "recharts": "^2.13.2",
     "resend": "^4.0.1-alpha.0",
     "socket.io-client": "^4.8.1",
+    "svix": "^1.37.0",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
     "uploadthing": "^7.2.0",
@@ -6754,6 +8805,7 @@ File: package.json
     "@types/react": "^18.3.12",
     "@types/react-big-calendar": "^1.15.0",
     "@types/react-dom": "^18.3.1",
+    "msw": "^2.6.0",
     "postcss": "^8",
     "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.6.8",
@@ -6773,6 +8825,23 @@ const config = {
 };
 
 export default config;
+
+================
+File: sentry.server.config.ts
+================
+import * as Sentry from "@sentry/nextjs";
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 1.0,
+  debug: process.env.NODE_ENV === 'development',
+  environment: process.env.NODE_ENV,
+});
+
+================
+File: service-worker.js
+================
+importScripts("https://js.pusher.com/beams/service-worker.js");
 
 ================
 File: tailwind.config.ts

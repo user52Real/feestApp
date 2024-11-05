@@ -1,3 +1,5 @@
+// src/lib/activity/notifications.ts
+
 import mongoose from 'mongoose';
 import { pusherServer } from "@/lib/pusher";
 
@@ -15,6 +17,8 @@ export const ActivityTypes = {
   GUEST_CANCELLED: 'guest.cancelled',
   GUEST_CHECKED_IN: 'guest.checked_in',
   GUEST_REMOVED: 'guest.removed',
+  GUEST_WAITLISTED: 'guest.waitlisted',
+  GUEST_PROMOTED: 'guest.promoted', // When moved from waitlist to attendee
   
   // Communication activities
   COMMENT_ADDED: 'comment.added',
@@ -60,6 +64,10 @@ const activitySchema = new mongoose.Schema({
 }, {
   timestamps: true,
 });
+
+// Add indexes
+activitySchema.index({ type: 1, eventId: 1 });
+activitySchema.index({ userId: 1, createdAt: -1 });
 
 // Create the model
 const Activity = mongoose.models.Activity || mongoose.model('Activity', activitySchema);
@@ -122,8 +130,10 @@ export function formatActivityMessage(activity: Activity): string {
     [ActivityTypes.GUEST_CANCELLED]: "cancelled their registration",
     [ActivityTypes.GUEST_CHECKED_IN]: "checked in to the event",
     [ActivityTypes.GUEST_REMOVED]: "removed a guest",
+    [ActivityTypes.GUEST_WAITLISTED]: "joined the waitlist",
+    [ActivityTypes.GUEST_PROMOTED]: "was promoted from the waitlist",
     [ActivityTypes.COMMENT_ADDED]: "added a comment",
-    [ActivityTypes.MESSAGE_SENT]: "sent a message",
+    [ActivityTypes.MESSAGE_SENT]: "sent a message"
   };
 
   return messages[activity.type] || "performed an action";

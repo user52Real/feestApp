@@ -1,32 +1,126 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse, type NextRequest } from "next/server";
+import { Redis } from '@upstash/redis';
+import { Ratelimit } from '@upstash/ratelimit';
 
-const isProtectedRoute = createRouteMatcher(['/dashboard(.*)', '/forum(.*)'])
+// Constants
+const RATE_LIMIT = 100;
+const RATE_LIMIT_WINDOW = '15 m';
 
-export default clerkMiddleware(async (auth, req) => {
-  const { userId, redirectToSignIn } = await auth()
+// Route matchers
+const protectedRoutes = createRouteMatcher([
+  '/dashboard(.*)', 
+  '/forum(.*)',
+  '/events(.*)'
+]);
 
-  if (!userId && isProtectedRoute(req)) {
-    // Add custom logic to run before redirecting
+const authRoutes = createRouteMatcher([
+  '/sign-in(.*)',
+  '/sign-up(.*)'
+]);
 
-    const returnUrl = new URL(req.url).pathname;
-    
-    return redirectToSignIn({
-      returnBackUrl: returnUrl,
+// Initialize Redis
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!
+});
+
+// Initialize rate limiter
+const rateLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(RATE_LIMIT, RATE_LIMIT_WINDOW),
+  analytics: true,
+});
+
+
+// Security headers
+const securityHeaders = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+};
+
+// Helper functions
+async function handleRateLimit(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? '127.0.0.1';
+  const { success, remaining, reset } = await rateLimiter.limit(`${ip}:${req.nextUrl.pathname}`);
+
+  if (!success) {
+    return new NextResponse('Too Many Requests', {
+      status: 429,
+      headers: {
+        'X-RateLimit-Limit': RATE_LIMIT.toString(),
+        'X-RateLimit-Remaining': remaining.toString(),
+        'X-RateLimit-Reset': reset.toString(),
+      },
     });
   }
+  return null;
+}
 
-  const isAuthRoute = req.url.includes('/sign-in') || req.url.includes('/sign-up');
-  if (userId && isAuthRoute) {
-    const dashboardUrl = new URL('/dashboard', req.url);
-    return Response.redirect(dashboardUrl);
+async function getUserRole(userId: string) {
+  const cachedRole = await redis.get(`user_role:${userId}`);
+  return cachedRole || 'ATTENDEE';
+}
+
+async function createSecureResponse(req: NextRequest, userId: string) {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-user-id', userId);
+  
+  const userRole = await getUserRole(userId);
+  requestHeaders.set('x-user-role', userRole.toString());
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+
+  // Add security headers
+  Object.entries(securityHeaders).forEach(([header, value]) => {
+    response.headers.set(header, value);
+  });
+
+  return response;
+}
+
+// Main middleware
+export default clerkMiddleware(async (auth, req) => {
+  try {
+    const { userId, redirectToSignIn } = await auth();
+
+    // Check rate limit
+    const rateLimitResponse = await handleRateLimit(req);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    
+    // Handle authentication
+    if (!userId && protectedRoutes(req)) {
+      return redirectToSignIn({
+        returnBackUrl: new URL(req.url).pathname,
+      });
+    }
+
+    if (userId && authRoutes(req)) {
+      return Response.redirect(new URL('/dashboard', req.url));
+    }
+
+    // Add security headers and user info for authenticated requests
+    if (userId) {
+      return createSecureResponse(req, userId);
+    }
+
+    return NextResponse.next();
+  } catch (error) {
+    console.error('Middleware Error:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
-})
+});
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/api/:path*',
+    '/(.*)',
   ],
-}
+};

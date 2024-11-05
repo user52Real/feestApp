@@ -35,15 +35,24 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
-  title: z.string().min(2).max(100),
-  description: z.string().min(10),
-  startDate: z.date(),
-  endDate: z.date(),
-  venue: z.string().min(2),
-  address: z.string().min(5),
+  title: z.string().min(2, "Title must be at least 2 characters").max(100),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  startDate: z.date({
+    required_error: "Start date is required",
+  }),
+  endDate: z.date({
+    required_error: "End date is required",
+  }),
+  venue: z.string().min(2, "Venue is required"),
+  address: z.string().min(5, "Address is required"),
   capacity: z.string().transform(Number),
   visibility: z.enum(["public", "private"]),
-  recurring: z.enum(["none", "daily", "weekly", "monthly"]),
+  recurring: z.enum(["none", "daily", "weekly", "monthly"])
+}).refine(data => {
+  return data.endDate >= data.startDate;
+}, {
+  message: "End date must be after start date",
+  path: ["endDate"],
 });
 
 interface EventFormProps {

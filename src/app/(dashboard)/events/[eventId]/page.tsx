@@ -46,6 +46,7 @@ import { auth } from "@clerk/nextjs/server";
 import dbConnect from "@/lib/db/connection";
 import { Event as EventModel } from "@/lib/db/models/event";
 import { serializeEvent } from "@/lib/utils";
+import AdUnit from "@/components/ads/AdUnit";
 
 function ErrorFallback({ error }: { error: Error }) {
   return (
@@ -221,6 +222,18 @@ export default async function EventPage({
         </div>
         <Separator className="mb-4" />
         <EventChat eventId={event.id} />
+        <AdUnit 
+              slot="30002"
+              format="vertical"
+              style={{ 
+                position: "sticky",
+                top: "2rem",
+                minHeight: "100px",
+                width: "400px",
+                margin: "0 auto",
+                display: "flex"
+              }}
+        />
       </Card>
 
       {/* Share Dialog */}

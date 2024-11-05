@@ -8,7 +8,7 @@ import dbConnect from "@/lib/db/connection";
 async function getEvent(eventId: string) {
   try {
     await dbConnect();
-    const event = await Event.findById(eventId).lean();
+    const event = await Event.findById(eventId).toString();
     if (!event) return null;
     return event;
   } catch (error) {

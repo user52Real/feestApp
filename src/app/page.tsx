@@ -22,16 +22,16 @@ export default function LandingPage() {
           grand conferences, we've got you covered.
         </p>
         <div className="flex flex-col gap-4 min-[400px]:flex-row">
-          <Link href="/sign-up">
-            <Button size="lg" className="gap-2">
+          <Button asChild size="lg" className="gap-2">
+            <Link href="/sign-up">
               Get Started <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-          <Link href="/sign-in">
-            <Button size="lg" variant="outline">
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href="/sign-in">
               Sign In
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 

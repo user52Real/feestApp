@@ -35,6 +35,7 @@ export function EventChat({ eventId }: { eventId: string }) {
     });
 
     return () => {
+      pusherClient.unbind_all();
       pusherClient.unsubscribe(`event-${eventId}`);
     };
   }, [eventId]);

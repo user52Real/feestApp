@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/db/connection";
 import { Event } from "@/lib/db/models/event";
 import { auth } from "@clerk/nextjs/server";
-import { Guest } from "@/lib/db/models/guest";
 import mongoose from "mongoose";
 
 export async function GET(

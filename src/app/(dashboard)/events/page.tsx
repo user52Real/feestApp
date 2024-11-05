@@ -1,4 +1,3 @@
-// src/app/(dashboard)/events/page.tsx
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -7,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EventCard } from "@/components/events/event-card";
 import dbConnect from "@/lib/db/connection";
 import { Event as EventModel } from "@/lib/db/models/event";
+import AdUnit from "@/components/ads/AdUnit";
 
 // Define the Event interface
 interface Event {
@@ -91,7 +91,9 @@ export default async function EventsPage() {
   const events = await getEvents(userId);
 
   return (
+    
     <div className="space-y-6">
+      
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Events</h1>
         <Button asChild>
@@ -100,7 +102,7 @@ export default async function EventsPage() {
             Create Event
           </Link>
         </Button>
-      </div>
+      </div>     
 
       {events.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
@@ -110,12 +112,27 @@ export default async function EventsPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
           {events.map((event) => (
             <EventCard key={event.id} event={event} />
-          ))}
+          ))}          
         </div>
+              
       )}
+      <div className="xl:block item-center justify-items-center justify-center shrink-0">
+            <AdUnit 
+              slot="30002"
+              format="vertical"
+              style={{ 
+                position: "sticky",
+                top: "2rem",
+                minHeight: "100px",
+                width: "400px",
+                margin: "0 auto",
+                display: "flex"
+              }}
+            />
+      </div>      
     </div>
   );
 }

@@ -32,8 +32,8 @@ const EventSchema = new Schema({
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   location: {
-    venue: { type: String, required: true },
-    address: { type: String, required: true },
+    venue: { type: String, required: true, default: 'No venue specified' },
+    address: { type: String, required: true, default: 'No address specified' },
     coordinates: {
       lat: Number,
       lng: Number
@@ -72,6 +72,12 @@ const EventSchema = new Schema({
     }
   }
 });
+
+// Create indexes
+EventSchema.index({ organizerId: 1, startDate: -1 });
+EventSchema.index({ status: 1 });
+EventSchema.index({ "location?.venue": 1 });
+EventSchema.index({ title: "text", description: "text" });
 
 const Event = mongoose.models.Event || mongoose.model<IEvent>("Event", EventSchema);
 

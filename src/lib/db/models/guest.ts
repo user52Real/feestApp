@@ -49,6 +49,8 @@ const guestSchema = new mongoose.Schema({
 });
 
 // Add compound index to prevent duplicate registrations
-guestSchema.index({ eventId: 1, userId: 1 }, { unique: true });
+guestSchema.index({ eventId: 1, status: 1 });
+guestSchema.index({ userId: 1, eventId: 1 }, { unique: true });
+guestSchema.index({ email: 1 });
 
 export const Guest = mongoose.models.Guest || mongoose.model('Guest', guestSchema);

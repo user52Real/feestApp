@@ -9,6 +9,7 @@ import { RecentActivity } from "@/components/dashboard/recent-activity";
 import dbConnect from "@/lib/db/connection";
 import { Event } from "@/lib/db/models/event";
 import { Guest } from "@/lib/db/models/guest";
+import AdUnit from "@/components/ads/AdUnit";
 
 async function getEventStats(userId: string) {
   await dbConnect();
@@ -80,32 +81,65 @@ export default async function DashboardPage() {
   const stats = await getEventStats(userId);
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <EventStats stats={stats} />
-      </div>
+    <div className="flex gap-4">
+      {/* Left Sidebar for Ad */}
+      {/* <div className="hidden xl:block w-[100px] shrink-0">
+        <AdUnit 
+          slot="30002"
+          format="vertical"
+          style={{ 
+            position: "sticky",
+            top: "2rem",
+            minHeight: "600px",
+            width: "160px",
+            margin: "",
+            display: "flex"
+          }}
+        />
+      </div> */}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="md:col-span-4">
-          <DashboardCharts />
+      {/* Main Dashboard Content */}
+      <div className="flex-1 space-y-8">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <EventStats stats={stats} />
         </div>
-        <div className="md:col-span-3">
-          <UpcomingEvents />
-        </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RecentActivity />
-          </CardContent>
-        </Card>
-      </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+          <div className="md:col-span-4">
+            <DashboardCharts />
+          </div>
+          <div className="md:col-span-3">
+            <UpcomingEvents />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RecentActivity />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="xl:block item-center justify-items-center justify-center shrink-0">
+            <AdUnit 
+              slot="30002"
+              format="vertical"
+              style={{ 
+                position: "sticky",
+                top: "2rem",
+                minHeight: "100px",
+                width: "400px",
+                margin: "0 auto",
+                display: "flex"
+              }}
+            />
+      </div> 
+      </div>      
     </div>
   );
 }

@@ -1,6 +1,6 @@
-// src/components/dashboard/charts.tsx
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -17,6 +17,11 @@ import {
   Pie,
   Cell
 } from 'recharts';
+import { Skeleton } from "@/components/ui/skeleton";
+import { MetricCard } from './metric-card';
+import { Calendar } from "../ui/calendar";
+import { Activity } from "@/lib/db/models/activity";
+import { useQuery } from "@tanstack/react-query";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -37,29 +42,58 @@ interface ChartData {
 }
 
 export function DashboardCharts() {
-  // In a real app, this would come from an API
-  const data: ChartData = {
-    attendanceData: [
-      { name: 'Jan', attendees: 85, capacity: 100 },
-      { name: 'Feb', attendees: 92, capacity: 100 },
-      { name: 'Mar', attendees: 88, capacity: 100 },
-      { name: 'Apr', attendees: 95, capacity: 100 },
-      { name: 'May', attendees: 90, capacity: 100 },
-      { name: 'Jun', attendees: 94, capacity: 100 },
-    ],
-    registrationData: [
-      { name: 'Week 1', registrations: 24 },
-      { name: 'Week 2', registrations: 36 },
-      { name: 'Week 3', registrations: 42 },
-      { name: 'Week 4', registrations: 50 },
-    ],
-    eventTypeData: [
-      { name: 'Conference', value: 35 },
-      { name: 'Workshop', value: 25 },
-      { name: 'Seminar', value: 20 },
-      { name: 'Networking', value: 20 },
-    ],
-  };
+  const [data, setData] = useState<ChartData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        const response = await fetch('/api/events/stats/charts');
+        if (!response.ok) {
+          throw new Error('Failed to fetch chart data');
+        }
+        const chartData = await response.json();
+        setData(chartData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, []);
+
+  if (loading) {
+    return (
+      <Card className="col-span-4">
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[300px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="col-span-4">
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+            Failed to load chart data
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data) return null;
 
   return (
     <Card className="col-span-4">
@@ -86,6 +120,7 @@ export function DashboardCharts() {
                   dataKey="attendees" 
                   stroke="#8884d8" 
                   strokeWidth={2}
+                  name="Attendees"
                 />
                 <Line 
                   type="monotone" 
@@ -93,6 +128,7 @@ export function DashboardCharts() {
                   stroke="#82ca9d" 
                   strokeWidth={2}
                   strokeDasharray="5 5"
+                  name="Capacity"
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -109,6 +145,7 @@ export function DashboardCharts() {
                   dataKey="registrations" 
                   fill="#8884d8" 
                   radius={[4, 4, 0, 0]}
+                  name="Registrations"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -140,3 +177,28 @@ export function DashboardCharts() {
     </Card>
   );
 }
+
+// export default function DashboardMetrics() {
+//   const metrics = useQuery(['metrics'], async () => {
+//     const response = await fetch('/api/events/stats');
+//     return response.json();
+//   });
+
+//   return (
+//     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+//       <MetricCard
+//         title="Total Events"
+//         value={metrics.data.totalEvents}
+//         icon={<Calendar />}
+//       />
+//       <MetricCard
+//         title="Active Events"
+//         value={metrics.data.activeEvents}
+//         icon={<Activity />}
+//       />
+//       {/* Add more metric cards */}
+//     </div>
+//   );
+// }
+
+

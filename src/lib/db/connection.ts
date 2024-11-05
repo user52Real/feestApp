@@ -22,6 +22,9 @@ if (!global.mongoose) {
   global.mongoose = cached;
 }
 
+mongoose.set('autoIndex', false); // Disable in production
+mongoose.set('maxTimeMS', 30000); // Set operation timeout
+
 async function dbConnect() {
   if (cached.conn) {
     return cached.conn;

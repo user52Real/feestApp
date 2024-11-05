@@ -3,13 +3,21 @@ import dbConnect from "@/lib/db/connection";
 import { Event } from "@/lib/db/models/event";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { handleApiError, ApiError } from '@/lib/api/error-handler';
+import { analyzeQueryPerformance } from '@/lib/db/utils/performance';
 
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      throw new ApiError('Unauthorized', 401, 'UNAUTHORIZED');
     }
+
+    // Analyze query performance
+    const queryPerformance = await analyzeQueryPerformance(Event, {
+      organizerId: userId
+    });
+    console.log('Query Performance:', queryPerformance);
 
     await dbConnect();
     const data = await req.json();
@@ -23,9 +31,7 @@ export async function POST(req: NextRequest) {
         venue: data.venue,
         address: data.address
       }
-    });
-
-    
+    });   
 
     // Convert the Mongoose document to a plain object and ensure _id is converted to id
     const eventObject = event.toObject();
@@ -41,18 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(responseEvent);
   } catch (error) {
     console.error("Error creating event:", error);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: "Failed to create event", 
-        details: error instanceof Error ? error.message : "Unknown error" 
-      }), 
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    return handleApiError(error);    
   }
 }
 
@@ -62,10 +57,19 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const organizerId = searchParams.get("organizerId");
+    const { userId } = await auth();
+    if (!userId) return new NextResponse("Unauthorized", { status: 401 });
 
     let query = {};
     if (status) query = { ...query, status };
     if (organizerId) query = { ...query, organizerId };
+
+    // Analyze query performance
+    const queryPerformance = await analyzeQueryPerformance(Event, {
+      organizerId: userId
+    });
+
+    console.log('Query Performance:', queryPerformance);
 
     const events = await Event.find(query).sort({ createdAt: -1 }).limit(100);
 
