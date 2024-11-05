@@ -119,8 +119,8 @@ const nextConfig = {
 
 export default withSentryConfig(
   withSentryConfig(nextConfig, {
-    org: "feest",
-    project: "Shareflyt",
+    org: "Shareflyt",
+    project: "feest",
     authToken: process.env.SENTRY_AUTH_TOKEN,
     widenClientFileUpload: true,
     transpileClientSDK: true,
